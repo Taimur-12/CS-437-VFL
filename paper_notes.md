@@ -134,13 +134,121 @@ SSIM values above are from 30-epoch runs and will be replaced with 50-epoch runs
 
 ---
 
+## PAD-UFES-20 External Validation — Paper-Ready Notes
+
+**Role in the paper:** PAD-UFES-20 is the external validation dataset after ISIC-2019. It tests whether the VQ communication bottleneck transfers from ISIC dermoscopy-style imagery to smartphone clinical skin-lesion imagery with structured metadata.
+
+**Dataset summary:** PAD-UFES-20 contains 2,298 smartphone clinical skin-lesion images from 1,373 patients and 1,641 lesions. The native task is six-class diagnosis: ACK, BCC, MEL, NEV, SCC, and SEK. The dataset includes structured patient/lesion metadata, but also contains fields that must be excluded from model inputs because they are identifiers, labels, or diagnostic-process proxies. Class imbalance is substantial, especially for MEL, so balanced accuracy, per-class recall, and tail recall should be reported.
+
+**Why it belongs in this paper:** Recent 2025/2026 PAD-UFES-20 work studies multimodal skin-lesion diagnosis with centralized image+metadata fusion. Our experiment studies the vertical version of the same clinical data structure: the image party transmits only a representation, the metadata-and-label party performs classification, and reconstruction privacy is evaluated from the transmitted representation. This positions our contribution as orthogonal to fusion architecture papers.
+
+### Recent PAD-UFES-20 Work to Cite
+
+| Paper | Year | Relevance |
+|---|---:|---|
+| **DualRefNet: Multimodal dual-stage feature refinement for robust skin lesion classification**, Scientific Reports | 2025 | Uses PAD-UFES20 and ISIC-2019 for image+metadata fusion; supports PAD as an active multimodal benchmark. URL: https://www.nature.com/articles/s41598-025-14839-7 |
+| **MetaBlock-SE: A Method to Deal With Missing Metadata in Multimodal Skin Cancer Classification**, IEEE JBHI | 2025 | Uses PAD-UFES-20 and extended PAD data for metadata-robust multimodal classification; centralized fusion, not VFL privacy. DOI: 10.1109/JBHI.2025.3612837 |
+| **HCHS-Net: A Multimodal Handcrafted Feature and Metadata Framework for Interpretable Skin Lesion Classification**, Biomimetics | 2026 | Six-class PAD-UFES-20 study combining visual features with clinical metadata; useful evidence that PAD remains active in 2026. URL: https://www.mdpi.com/2313-7673/11/2/154 |
+| **DermaCalibra: A Robust and Explainable Multimodal Framework for Skin Lesion Diagnosis via Bayesian Uncertainty and Dynamic Modulation**, Diagnostics | 2026 | Uses PAD-UFES-20 for uncertainty-aware multimodal diagnosis; relevant recent centralized multimodal comparison point. URL: https://www.mdpi.com/2075-4418/16/4/630 |
+| **Cross-Attention Enables Context-Aware Multimodal Skin Lesion Diagnosis**, medRxiv preprint | 2026 | Uses PAD-UFES-20 with image+metadata and compares metadata-only, image-only, late fusion, and cross-attention. Cite only as a preprint. URL: https://www.medrxiv.org/content/10.64898/2026.03.10.26348046v1 |
+
+### Related-Work Positioning
+
+Paper line:
+
+> *"Recent PAD-UFES-20 studies demonstrate renewed interest in multimodal skin-lesion diagnosis using smartphone images and structured clinical metadata. These works primarily study centralized fusion architectures. In contrast, we evaluate the vertical setting in which the image holder transmits only a compressed representation to the metadata-and-label holder, and we measure both diagnostic utility and reconstruction leakage from that representation."*
+
+This distinction should be maintained throughout the paper:
+
+| Recent PAD papers | This paper |
+|---|---|
+| Centralized multimodal fusion | Vertical split between image holder and metadata/label holder |
+| Optimize diagnosis accuracy, calibration, or interpretability | Optimize privacy/utility tradeoff at the communication boundary |
+| Raw image features available inside one training pipeline | Passive image representation is the privacy-sensitive transmitted object |
+| No reconstruction privacy evaluation | InverNetV9 reconstruction attack with SSIM/LPIPS |
+
+### PAD Experimental Protocol
+
+**Task:** Six-class classification using native PAD labels: ACK, BCC, MEL, NEV, SCC, SEK. Keep this as the primary PAD task because it aligns with the existing v9 multiclass setup and recent six-class PAD work. A binary malignant/benign variant can be reported as an appendix if needed.
+
+**VFL split:**
+- Passive client: smartphone lesion image.
+- Active client: non-leaky metadata and diagnosis label.
+- Passive architecture: same EfficientNet-B0, projection, sign, and VQ variants as v9.
+- Active architecture: same metadata MLP and classifier structure as v9, with `NUM_CLASSES = 6`.
+- Privacy evaluation: same InverNetV9 reconstruction attack from transmitted representation.
+
+**Primary metadata setting: `PAD-core+skin`**
+- Include: `age`, `gender`, `region`, `fitspatrick`.
+- Rationale: closest to ISIC age/sex/site metadata while adding Fitzpatrick skin type as legitimate clinical context.
+
+**Secondary metadata setting: `PAD-clinical`**
+- Include non-leaky symptoms/risk factors: lesion diameters, smoke/drink/pesticide, cancer history, skin cancer history, itch, grew, hurt, changed, bleed, elevation.
+- Use as a secondary setting because richer clinical metadata may dominate the classifier and reduce the interpretability of image-side VQ effects.
+
+**Excluded fields:**
+- `patient_id`, `lesion_id`, `img_id`: identifiers; use only for splitting and audit.
+- `diagnostic`: target label.
+- `biopsed` / biopsy indicator: diagnostic-process proxy and likely label leakage.
+- `background_father`, `background_mother`, `has_piped_water`, `has_sewage_system`: exclude from main experiments to avoid ancestry/socioeconomic confounding. These can be reserved for optional sensitivity analysis only.
+
+**Splitting:** Use patient-grouped stratified splits. No patient may appear in both training and validation. Image-level random splitting is invalid because PAD contains repeated patients/lesions. Validation splits must contain MEL and SCC.
+
+**Image preprocessing:** Keep the v9 architecture, but use lesion-safe PAD preprocessing. Build a square resize/pad cache and use conservative random crops, e.g. `RandomResizedCrop(scale=(0.70,1.0))`, rather than the aggressive ISIC crop. Save a crop-audit grid before final runs.
+
+**Minimum PAD method grid:**
+
+| Method | Purpose |
+|---|---|
+| `A_plain_vfl` | continuous transmission baseline |
+| `A_proj_vfl` | projection-only control |
+| `S_sign_quant` | naive 128-bit discrete baseline |
+| `H_vq_K64` | strong ISIC utility point |
+| `H_vq_K256` | reference VQ setting |
+| `H_vq_M4` | 32-bit aggressive compression |
+| `H_vq_M16` | equal-bit comparison against sign quantization |
+| `H_vq_commit_high` | high-commitment VQ setting |
+
+**Additional controls:**
+- Metadata-only PAD-core+skin model.
+- Image-only model.
+
+These controls are needed to show that PAD results are not driven entirely by metadata or entirely by the image backbone.
+
+### PAD Result Interpretation
+
+Strongest positive result:
+
+```text
+H_vq_K64 or H_vq_M4 keeps WACC close to A_plain_vfl / A_proj_vfl,
+reduces SSIM relative to continuous baselines,
+increases LPIPS relative to continuous baselines,
+and uses 32-64 bits instead of 4096-40960 bits.
+```
+
+Key same-bit comparison:
+
+```text
+H_vq_M16 vs S_sign_quant at 128 bits.
+If H_vq_M16 matches or exceeds sign utility and reduces reconstruction quality,
+the learned codebook claim is strengthened.
+```
+
+If VQ lowers reconstruction quality but costs utility, report it as a privacy/utility tradeoff. If sign quantization matches VQ at equal bits, soften the claim from "learned VQ is superior" to "discrete bottlenecks provide reconstruction resistance, with VQ offering a tunable learned variant."
+
+### Paper Paragraph Draft
+
+> *"We additionally evaluate on PAD-UFES-20, a public smartphone clinical skin-lesion dataset with structured patient metadata. Although introduced in 2020, PAD-UFES-20 remains an active benchmark in recent 2025/2026 multimodal skin-lesion work, including DualRefNet, MetaBlock-SE, HCHS-Net, and DermaCalibra. These studies focus on centralized image-metadata fusion. We instead use PAD-UFES-20 to evaluate a vertical version of the same clinical setting: the image holder transmits only an intermediate representation, the metadata-and-label holder performs classification, and reconstruction leakage is measured from the transmitted representation. This tests whether the VQ bottleneck behavior observed on ISIC-2019 transfers to smartphone clinical imagery under a recent multimodal benchmark context."*
+
+---
+
 ## Paper Structure (draft outline)
 
 1. Introduction — VFL privacy threat, embedding inversion problem
 2. Related Work — VFL privacy attacks (UIFV, URVFL), VQ in FL (FedMPQ, FedVQCS), multimodal VFL fusion (HybridVFL), split learning privacy
 3. Method — VFL setup, VQ bottleneck, InverNetV9 attacker
-4. Experiments — Dataset (ISIC-2019), baselines (A_plain, A_proj, sign methods), VQ ablations
-5. Results — Utility table, SSIM table, Pareto curve, reconstruction grids
+4. Experiments — Datasets (ISIC-2019 primary, PAD-UFES-20 external validation), baselines (A_plain, A_proj, sign methods), VQ ablations
+5. Results — Utility table, SSIM table, PAD external-validation table, Pareto curve, reconstruction grids
 6. Discussion — Why VQ improves utility, privacy mechanism, limitations (URVFL out of scope, DRAG as stronger attacker)
 7. Conclusion
 
@@ -154,6 +262,9 @@ SSIM values above are from 30-epoch runs and will be replaced with 50-epoch runs
 - [ ] Reconstruction grid figure (orig | recon | diff for best vs worst VQ method vs A_plain)
 - [ ] Equal-bit comparison writeup (H_vq_M16 vs S_sign_quant at 128 bits)
 - [ ] Clinical SSIM citation for dermoscopy image quality
+- [ ] Implement PAD-UFES-20 loader with patient-grouped split and leakage-safe metadata
+- [ ] Run PAD-core+skin minimum method grid + Stage B reconstruction
+- [ ] Add metadata-only and image-only PAD controls
 
 ---
 
