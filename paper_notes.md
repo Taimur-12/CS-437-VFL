@@ -114,10 +114,30 @@ SSIM values above are from 30-epoch runs and will be replaced with 50-epoch runs
 
 ---
 
+## HybridVFL — Related Work Positioning
+
+**Paper:** "HybridVFL: Disentangled Feature Learning for Edge-Enabled Vertical Federated Multimodal Classification" (arXiv 2512.10701, UCC '25, Anoosha et al.)
+
+**What they do:** Each client encoder produces two outputs — `z_inv` (malignancy-invariant, shared semantics) and `z_spec` (modality-specific). All four vectors are sent to the server and fused by a cross-modal Transformer with a cosine consistency loss aligning the two clients' invariant embeddings.
+
+**Their dataset:** HAM10000 (10,015 images, 7 classes). Their Simple Concatenation VFL baseline: balanced accuracy 0.7766. HybridVFL: 0.9235 (+14.69 pp).
+
+**Why you cannot compare their numbers to ours:** Different datasets (HAM10000 vs ISIC-2019), different class counts (7 vs 8), different image sources. Any numerical comparison would be invalid.
+
+**How to use this in the paper (Related Work):**
+
+> *"HybridVFL [cite] demonstrates that cross-modal transformer fusion substantially outperforms simple concatenation in VFL multimodal classification. Our work is orthogonal: we fix the fusion mechanism (concatenation, as in their baseline) and vary the transmission method (VQ vs. continuous embedding), isolating the contribution of the quantization bottleneck to both utility and privacy. Combining VQ compression with disentangled cross-modal fusion is a natural extension we leave to future work."*
+
+**Key distinction to maintain:** HybridVFL has no privacy evaluation (no reconstruction attack). They do not claim VQ or any privacy mechanism. Our contribution — showing VQ simultaneously improves utility and reduces reconstruction fidelity — is not present in their paper.
+
+**Future work hook:** Phase 2 of this project (cross-modal attention + VQ privacy layer) directly extends HybridVFL's fusion idea with our quantization bottleneck.
+
+---
+
 ## Paper Structure (draft outline)
 
 1. Introduction — VFL privacy threat, embedding inversion problem
-2. Related Work — VFL privacy attacks (UIFV, URVFL), VQ in FL (FedMPQ, FedVQCS), split learning privacy
+2. Related Work — VFL privacy attacks (UIFV, URVFL), VQ in FL (FedMPQ, FedVQCS), multimodal VFL fusion (HybridVFL), split learning privacy
 3. Method — VFL setup, VQ bottleneck, InverNetV9 attacker
 4. Experiments — Dataset (ISIC-2019), baselines (A_plain, A_proj, sign methods), VQ ablations
 5. Results — Utility table, SSIM table, Pareto curve, reconstruction grids
