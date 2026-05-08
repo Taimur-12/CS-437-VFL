@@ -9,6 +9,7 @@
 \usepackage{graphicx}
 \usepackage{subfigure}
 \usepackage{booktabs}
+\usepackage{amsmath}
 
 \usepackage{hyperref}
 
@@ -19,7 +20,7 @@
 \begin{document}
 
 \twocolumn[
-\icmltitle{Insert title here}
+\icmltitle{Product-Quantized Passive Representations for Communication-Efficient Reconstruction Privacy in Medical Vertical Federated Learning}
 
 \begin{icmlauthorlist}
 \icmlauthor{Student 1}{}
@@ -29,6 +30,7 @@
 
 \icmlkeywords{Machine Learning, ICML}
 
+% TODO: Add the public GitHub repository link here once available.
 \vskip 0.3in
 ]
 
@@ -41,9 +43,104 @@
 \textit{This section is supposed to set up knowledge of the problem domain so that any reader is able to catch on to the problem. This is where your SoTA survey plays a key role in describing the domain, it's problems, several past techniques or baselines that have tried to fix the problem and the gap that still exists. Slowly introduce your main idea and provide a list of goals that your paper aims to achieve.}
 
 \section{Methodology}
-\textit{This part of the paper is extremely important as it lays down the architecture of your improvements, and your primary experiments. Build up your methodology in terms of providing a concise problem formulation, your solution and any algorithms, theory, proofs that go along with it. Make sure the method is laid out in the order of a pyramid: improvements that stack up on each other are detailed in sequence. Feel free to have diagrams, algorithms, images etc. that can concisely convey your point as well.}
+\subsection{Vertical Federated Learning Setup}
 
-\textit{This section will also highlight your primary experiments, where you have to identify your baselines, datasets, choice of models, and metrics that you are focusing on to make your comparison. Make sure to provide a list of hyperparameters as well if your results are sensitive. Feel free to add any other experiments you wish to run that are major in scale.}
+We study a two-party vertical federated learning (VFL) setting in which the same patient examples are aligned across parties but the feature sets are disjoint \citep{khan2022communication}. For each example $i$, the passive party holds the dermoscopic image $x_i^{I}$, while the active party holds tabular metadata $x_i^{M}$ and the diagnostic label $y_i$. The passive party computes an intermediate representation $r_i=f_{\theta}(x_i^I)$ and transmits only $r_i$ to the active party. The active party concatenates this representation with a learned metadata embedding and predicts the class logits,
+\begin{equation}
+    \hat{y}_i = g_{\phi}\left(r_i, x_i^M\right).
+\end{equation}
+Raw images are never sent to the active party. During training, the active party returns gradients with respect to the received representation so that the passive encoder can be updated. Our method changes only the representation transmitted by the passive image party.
+
+\subsection{Passive Encoder and Active Classifier}
+
+The passive image encoder uses EfficientNet-B0 \citep{tan2019efficientnet} as a convolutional backbone. Given a $224 \times 224$ dermoscopic image crop, the backbone produces a 1280-dimensional continuous embedding $h_i \in \mathbb{R}^{1280}$. For all compressed methods, this embedding is passed through a learned projection layer,
+\begin{equation}
+    z_i = \mathrm{BN}(W h_i + b), \qquad z_i \in \mathbb{R}^{128}.
+\end{equation}
+The product-quantized bottleneck is applied to this 128-dimensional projected representation $z_i$, not to the 1280-dimensional EfficientNet embedding. This distinction matters because the projection-only baseline isolates the effect of dimensionality reduction from the effect of discrete quantization.
+
+The active party encodes metadata with a two-layer MLP from the 31-dimensional metadata vector to a 128-dimensional embedding. The classifier concatenates the received passive representation with this metadata embedding, applies a 256-unit hidden layer with ReLU and dropout $0.3$, and outputs logits over the eight diagnostic classes.
+
+\subsection{Product-Quantized Communication Bottleneck}
+
+Our main method replaces the continuous passive transmission with learned product quantization \citep{jegou2011product}. The projected vector $z_i \in \mathbb{R}^{128}$ is split into $M$ equal subspaces, $z_i = [z_{i,1}, \ldots, z_{i,M}]$, where $z_{i,m} \in \mathbb{R}^{128/M}$. Each subspace has a learned codebook $E_m \in \mathbb{R}^{K \times (128/M)}$. The transmitted code for subspace $m$ is the nearest codebook index
+\begin{equation}
+    c_{i,m} = \arg\min_{k \in \{1,\ldots,K\}} \lVert z_{i,m} - E_{m,k} \rVert_2^2.
+\end{equation}
+The active side reconstructs the quantized vector by codebook lookup,
+\begin{equation}
+    q_i = [E_{1,c_{i,1}}, \ldots, E_{M,c_{i,M}}].
+\end{equation}
+Only the $M$ integer code indices are transmitted per sample, so the forward communication payload is
+\begin{equation}
+    b_{\mathrm{vq}} = M \log_2 K \quad \text{bits}.
+    \label{eq:vq_bits}
+\end{equation}
+Reported bit counts assume the trained models and codebooks are already shared; the table measures the per-sample inference payload.
+
+Nearest-neighbor lookup is trained with a straight-through estimator \citep{bengio2013estimating}, following the neural vector-quantization training style used by VQ-VAE \citep{oord2017neural}. The VQ loss is
+\begin{equation}
+    \mathcal{L}_{\mathrm{vq}}
+    =
+    \lVert \mathrm{sg}[z_i] - q_i \rVert_2^2
+    + \beta \lVert z_i - \mathrm{sg}[q_i] \rVert_2^2,
+    \label{eq:vq_loss}
+\end{equation}
+where $\mathrm{sg}[\cdot]$ stops gradients and $\beta$ is the commitment weight. VQ methods use three continuous warmup epochs before activating the quantizer. Unless an ablation disables it, codebooks are initialized with K-means++ at epoch 4 using up to 4096 projected training embeddings \citep{arthur2007kmeans}. A soft code-usage entropy term with weight $0.01$ is added during VQ training to avoid codebook collapse.
+
+\subsection{Method Grid and Baselines}
+
+The method grid follows the task progression from continuous VFL to simple compression and then learned product quantization. Continuous methods transmit 32-bit floating point values. Sign methods transmit one bit per projected dimension and use a straight-through sign operation for training. Product-quantized methods transmit codebook indices according to Equation~\ref{eq:vq_bits}.
+
+\begin{table*}[t]
+\caption{Passive transmission mechanisms evaluated in this paper. Bits denote per-sample forward communication from the passive image party to the active party.}
+\label{tab:method_grid}
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{0.22\textwidth}p{0.43\textwidth}rrrr}
+\toprule
+Method & Passive transmission & $K$ & $M$ & $\beta$ & Bits \\
+\midrule
+\texttt{A\_plain\_vfl} & 1280-d continuous EfficientNet embedding & -- & -- & -- & 40960 \\
+\texttt{A\_proj\_vfl} & 128-d learned continuous projection & -- & -- & -- & 4096 \\
+\texttt{S\_rand\_sign} & sign of frozen random 128-d projection & -- & -- & -- & 128 \\
+\texttt{S\_sign\_quant} & sign of learned 128-d projection & -- & -- & -- & 128 \\
+\texttt{H\_vq\_K64} & product-quantized learned projection & 64 & 8 & 0.25 & 48 \\
+\texttt{H\_vq\_K256} & product-quantized learned projection & 256 & 8 & 0.25 & 64 \\
+\texttt{H\_vq\_no\_kmeans} & product-quantized learned projection, random init & 256 & 8 & 0.25 & 64 \\
+\texttt{H\_vq\_M4} & product-quantized learned projection & 256 & 4 & 0.25 & 32 \\
+\texttt{H\_vq\_M16} & product-quantized learned projection & 256 & 16 & 0.25 & 128 \\
+\texttt{H\_vq\_commit\_low} & product-quantized learned projection & 256 & 8 & 0.10 & 64 \\
+\texttt{H\_vq\_commit\_high} & product-quantized learned projection & 256 & 8 & 0.50 & 64 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Reconstruction Attacker}
+
+We evaluate reconstruction privacy under a passive inversion threat model motivated by UIFV, where an attacker uses intermediate VFL features to reconstruct private inputs \citep{yang2024uifv}. Our empirical attacker, InverNetV9, maps the transmitted passive representation to a $64 \times 64$ RGB reconstruction. The architecture is
+\begin{equation}
+\text{FC} \rightarrow \text{ResBlock} \times 2
+\rightarrow \text{ConvTranspose} \times 4
+\rightarrow \text{Refine}.
+\end{equation}
+The fully connected layer maps the method-specific input dimension to a $256 \times 4 \times 4$ feature map. The convolutional decoder is identical across methods. InverNetV9 is trained for 50 epochs with Adam using learning rate $10^{-3}$, weight decay $10^{-5}$, and cosine annealing. Its loss is
+\begin{equation}
+    \mathcal{L}_{\mathrm{inv}}
+    =
+    \mathcal{L}_{\mathrm{MSE}}
+    + 0.1 \, \mathcal{L}_{\mathrm{LPIPS}}.
+\end{equation}
+The reconstruction target is the same spatial extent seen by the encoder: a center crop to $224 \times 224$, resized to $64 \times 64$. This avoids asking the attacker to reconstruct image regions that were not observed by the passive encoder. We report SSIM \citep{wang2004ssim} and LPIPS \citep{zhang2018lpips}; higher SSIM and lower LPIPS indicate easier reconstruction and therefore weaker empirical privacy.
+
+\subsection{Dataset, Training, and Evaluation Protocol}
+
+Experiments use ISIC-2019, a dermoscopic skin-lesion classification benchmark with 25,331 training images across eight training categories and optional metadata \citep{isic2019challenge,combalia2022isic}. We drop the challenge's out-of-training ``none of the others'' category because it is not present in the training labels. The resulting classes are MEL, NV, BCC, AK, BKL, DF, VASC, and SCC. The VFL partition assigns images to the passive party and age, sex, anatomical-site metadata, and labels to the active party. Age is binned in five-year intervals with an unknown bin; sex and anatomical site are one-hot encoded, producing 31 metadata features.
+
+We use fold 0 from the cached ISIC-2019 split: 20,264 training samples and 5,067 validation samples. Images are cached at $256 \times 256$. Training uses random resized crops to $224 \times 224$, horizontal and vertical flips, color jitter, and ImageNet normalization \citep{deng2009imagenet}; validation uses center crop and the same normalization. All models are trained with class-weighted cross entropy, Adam \citep{kingma2015adam} with learning rate $10^{-4}$ and weight decay $10^{-5}$, batch size 32, five-epoch learning-rate warmup, cosine decay to $10^{-6}$, and early stopping with patience 10. For parity across methods, the forward representation and returned gradient both include additive Gaussian channel noise with $\sigma=0.01$. The maximum training budget is 40 epochs. Each method is run with seeds 42 and 43.
+
+The primary utility metric is WACC, implemented as balanced multiclass accuracy and aligned with the ISIC-2019 goal metric \citep{isic2019challenge}. We also report tail WACC, the mean recall over the four rarest classes in our training distribution: AK, DF, VASC, and SCC. For each method and seed, the best checkpoint is selected by validation WACC. Reconstruction metrics are then computed by training InverNetV9 on the corresponding training split representations and evaluating on all 5,067 validation samples.
 
 \section{Results}
 \textit{This section is essential in terms of actually demonstrating your improvements via tables, figures, graphs. You will summarize key findings, and your improvements over the baseline along with any trends that support or negate your hypotheses. }
@@ -54,12 +151,7 @@
 \section{Conclusion}
 \textit{Use the conclusion to identify any remaining gaps and limitations throughout your work. Summarize your key findings and what should be the focus of research regarding this topic in the future knowing the information that you know now.}
 
-\section{Tips for Writing (remove after reading)}
-For \textit{Bibliography}: please populate the \texttt{main.bib} file with your references and cite them in your paper using \texttt{cite}.
-
-General: Please reference key results, figures, table using \texttt{label} and \texttt{ref}. Make your sure everything is legible, and no figures overflow the document. Poorly formatted papers will be negatively graded. Please refrain from using any AI for writing purposes.
-
-\bibliography{example_paper}
+\bibliography{main}
 \bibliographystyle{icml2021}
 
 \end{document}
