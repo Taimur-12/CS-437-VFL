@@ -44,6 +44,8 @@ Medical diagnosis often depends on information that is naturally distributed acr
 
 VFL avoids raw data sharing, but it does not eliminate privacy leakage. In deep VFL, the passive party must transmit intermediate representations to the active side. These representations are an attack surface: they can be high-dimensional, continuous, and informative enough for an attacker to reconstruct private inputs. Recent feature-inversion work such as UIFV shows that intermediate VFL feature data can be used to recover private samples \citep{yang2024uifv}. Thus, communication efficiency and representation privacy are linked problems. Reducing the passive payload is useful only if diagnostic utility remains high, and a privacy mechanism is useful only if it reduces reconstructability without destroying task-relevant information.
 
+Existing work leaves a specific gap. VFL compression methods reduce exchanged representations or select features \citep{castiglia2022compressedvfl,inoue2023sparsevfl,castiglia2023lessvfl}, while VQ-based federated methods compress model updates or cross-device uplinks \citep{oh2024fedvqcs,yang2024fedmpq}. They do not evaluate learned product quantization as a passive image-representation bottleneck under reconstruction attack.
+
 We study this tradeoff in medical multimodal VFL for ISIC-2019 skin-lesion classification \citep{isic2019challenge,combalia2022isic}. The passive party owns the lesion image, while the active party owns metadata and labels. Our approach replaces the passive client's continuous transmitted representation with a learned product-quantized bottleneck. The image is encoded with EfficientNet-B0, projected to 128 dimensions, split into subspaces, and transmitted as learned codebook indices rather than floating-point embeddings. The active side performs codebook lookup and then uses the same simple metadata fusion and classifier. This isolates the transmission mechanism as the main variable.
 
 The central empirical claim is that product quantization improves the privacy-utility-communication tradeoff at the passive representation boundary. On ISIC-2019, the best VQ setting, \texttt{H\_vq\_K64}, improves balanced accuracy (WACC) from 0.7516 to 0.7860 over continuous VFL, lowers reconstruction SSIM from 0.6215 to 0.5030, and reduces the passive payload from 40960 bits to 48 bits.
@@ -51,8 +53,8 @@ The central empirical claim is that product quantization improves the privacy-ut
 Our contributions are:
 \begin{enumerate}
     \item We introduce a learned product-quantized passive representation bottleneck for medical VFL, applied after a 128-dimensional projection rather than directly to the 1280-dimensional EfficientNet embedding.
-    \item We evaluate continuous, projection-only, sign-quantized, random-sign, and product-quantized transmissions across 11 methods and two seeds, measuring both utility and communication.
-    \item We evaluate passive image reconstruction leakage with a 50-epoch InverNetV9 attacker using SSIM and LPIPS across all methods.
+    \item We evaluate continuous, projection-only, sign-quantized, random-sign, and product-quantized transmissions across 11 methods and two seeds.
+    \item We demonstrate a Pareto improvement: \texttt{H\_vq\_K64} improves WACC by 3.4 percentage points, reduces SSIM from 0.6215 to 0.5030, and uses $853\times$ fewer bits than continuous VFL.
     \item We provide evidence that VQ acts as a representation regularizer through silhouette scores, t-SNE visualizations, and codebook-utilization analysis.
 \end{enumerate}
 
@@ -68,7 +70,7 @@ Privacy in VFL is not guaranteed by the absence of raw data transfer. FedPass pr
 
 \subsection{Vector Quantization in Federated Learning}
 
-Vector and product quantization have a long history as compact representations for high-dimensional vectors \citep{jegou2011product}, and neural vector quantization has been widely used for learned discrete representations \citep{oord2017neural}. In federated learning, FedVQCS compresses local model updates in horizontal FL using dimensionality reduction and vector quantization \citep{oh2024fedvqcs}. FedMPQ uses multi-codebook product quantization to reduce uplink communication under secure aggregation in cross-device FL \citep{yang2024fedmpq}. These works treat VQ as model-update or uplink compression in horizontal/cross-device FL. In contrast, we use product quantization as the passive transmission mechanism in VFL and evaluate reconstruction leakage from the transmitted representation.
+Vector and product quantization have a long history as compact representations for high-dimensional vectors \citep{jegou2011product}, and neural vector quantization has been widely used for learned discrete representations \citep{oord2017neural}. In federated learning, FedVQCS compresses local model updates in horizontal FL using dimensionality reduction and vector quantization \citep{oh2024fedvqcs}. FedMPQ uses multi-codebook product quantization to reduce uplink communication under secure aggregation in cross-device FL \citep{yang2024fedmpq}. These works treat VQ as model-update or uplink compression in horizontal/cross-device FL and do not evaluate reconstruction privacy from passive VFL representations.
 
 \subsection{Multimodal VFL Fusion}
 
@@ -77,7 +79,7 @@ Multimodal VFL work studies how to combine features from different parties. Hybr
 \section{Methodology}
 \subsection{Vertical Federated Learning Setup}
 
-We study a two-party vertical federated learning (VFL) setting in which the same patient examples are aligned across parties but the feature sets are disjoint \citep{khan2022communication}. For each example $i$, the passive party holds the dermoscopic image $x_i^{I}$, while the active party holds tabular metadata $x_i^{M}$ and the diagnostic label $y_i$. The passive party computes an intermediate representation $r_i=f_{\theta}(x_i^I)$ and transmits only $r_i$ to the active party. The active party concatenates this representation with a learned metadata embedding and predicts the class logits,
+We study a two-party vertical federated learning (VFL) setting in which the same patient examples are aligned across parties but the feature sets are disjoint. For each example $i$, the passive party holds the dermoscopic image $x_i^{I}$, while the active party holds tabular metadata $x_i^{M}$ and the diagnostic label $y_i$. The passive party computes an intermediate representation $r_i=f_{\theta}(x_i^I)$ and transmits only $r_i$ to the active party. The active party concatenates this representation with a learned metadata embedding and predicts the class logits,
 \begin{equation}
     \hat{y}_i = g_{\phi}\left(r_i, x_i^M\right).
 \end{equation}
@@ -151,7 +153,7 @@ Method & Passive transmission & $K$ & $M$ & $\beta$ & Bits \\
 
 \subsection{Reconstruction Attacker}
 
-We evaluate reconstruction privacy under a passive inversion threat model motivated by UIFV, where an attacker uses intermediate VFL features to reconstruct private inputs \citep{yang2024uifv}. Our empirical attacker, InverNetV9, maps the transmitted passive representation to a $64 \times 64$ RGB reconstruction. The architecture is
+We evaluate reconstruction privacy under a passive inversion threat model motivated by UIFV, where an attacker uses intermediate VFL features to reconstruct private inputs \citep{yang2024uifv}. The attacker is passive and honest-but-curious: it observes transmitted passive representations at inference time, but it does not participate in VFL training, alter gradients, use labels, or know the passive model weights. Our empirical attacker, InverNetV9, maps the transmitted passive representation to a $64 \times 64$ RGB reconstruction. The architecture is
 \begin{equation}
 \text{FC} \rightarrow \text{ResBlock} \times 2
 \rightarrow \text{ConvTranspose} \times 4
@@ -164,18 +166,18 @@ The fully connected layer maps the method-specific input dimension to a $256 \ti
     \mathcal{L}_{\mathrm{MSE}}
     + 0.1 \, \mathcal{L}_{\mathrm{LPIPS}}.
 \end{equation}
-The reconstruction target is the same spatial extent seen by the encoder: a center crop to $224 \times 224$, resized to $64 \times 64$. This avoids asking the attacker to reconstruct image regions that were not observed by the passive encoder. We report SSIM \citep{wang2004ssim} and LPIPS \citep{zhang2018lpips}; higher SSIM and lower LPIPS indicate easier reconstruction and therefore weaker empirical privacy.
+The reconstruction target is the same spatial extent seen by the encoder: a center crop to $224 \times 224$, resized to $64 \times 64$. This avoids asking the attacker to reconstruct image regions that were not observed by the passive encoder. We report SSIM \citep{wang2004ssim} and LPIPS \citep{zhang2018lpips}; higher SSIM and lower LPIPS indicate easier reconstruction and therefore weaker empirical privacy. This attacker-based evaluation measures empirical reconstructability; it does not provide formal privacy bounds.
 
 \subsection{Dataset, Training, and Evaluation Protocol}
 
-Experiments use ISIC-2019, a dermoscopic skin-lesion classification benchmark with 25,331 training images across eight training categories and optional metadata \citep{isic2019challenge,combalia2022isic}. We drop the challenge's out-of-training ``none of the others'' category because it is not present in the training labels. The resulting classes are MEL, NV, BCC, AK, BKL, DF, VASC, and SCC. The VFL partition assigns images to the passive party and age, sex, anatomical-site metadata, and labels to the active party. Age is binned in five-year intervals with an unknown bin; sex and anatomical site are one-hot encoded, producing 31 metadata features.
+Experiments use ISIC-2019, an 8-class dermoscopic skin-lesion classification benchmark with 25,331 training images and optional metadata \citep{isic2019challenge,combalia2022isic}. We drop the challenge's out-of-training ``none of the others'' category because it is not present in the training labels. The resulting classes are MEL, NV, BCC, AK, BKL, DF, VASC, and SCC. The VFL partition assigns images to the passive party and age, sex, anatomical-site metadata, and labels to the active party. Age is binned in five-year intervals with an unknown bin; sex and anatomical site are one-hot encoded, producing 31 metadata features.
 
 We use fold 0 from the cached ISIC-2019 split: 20,264 training samples and 5,067 validation samples. Images are cached at $256 \times 256$. Training uses random resized crops to $224 \times 224$, horizontal and vertical flips, color jitter, and ImageNet normalization \citep{deng2009imagenet}; validation uses center crop and the same normalization. All models are trained with class-weighted cross entropy, Adam \citep{kingma2015adam} with learning rate $10^{-4}$ and weight decay $10^{-5}$, batch size 32, five-epoch learning-rate warmup, cosine decay to $10^{-6}$, and early stopping with patience 10. For parity across methods, the forward representation and returned gradient both include additive Gaussian channel noise with $\sigma=0.01$. The maximum training budget is 40 epochs. Each method is run with seeds 42 and 43.
 
-The primary utility metric is WACC, implemented as balanced multiclass accuracy and aligned with the ISIC-2019 goal metric \citep{isic2019challenge}. We also report tail WACC, the mean recall over the four rarest classes in our training distribution: AK, DF, VASC, and SCC. For each method and seed, the best checkpoint is selected by validation WACC. Reconstruction metrics are then computed by training InverNetV9 on the corresponding training split representations and evaluating on all 5,067 validation samples.
+Severe class imbalance motivates WACC as the primary utility metric. We implement WACC as balanced multiclass accuracy, aligned with the ISIC-2019 goal metric \citep{isic2019challenge}. We also report tail WACC, the mean recall over the four rarest classes in our training distribution: AK, DF, VASC, and SCC. For each method and seed, the best checkpoint is selected by validation WACC. Reconstruction metrics are then computed by training InverNetV9 on the corresponding training split representations and evaluating on all 5,067 validation samples.
 
 \section{Results}
-Table~\ref{tab:utility_results} reports diagnostic utility and communication cost for all 11 methods. All product-quantized variants improve WACC over the continuous VFL baseline while using between 32 and 128 bits per sample. The strongest operating point is \texttt{H\_vq\_K64}, which reaches $0.7860 \pm 0.0072$ WACC using 48 bits. Compared with \texttt{A\_plain\_vfl}, this is a gain of 3.4 percentage points while reducing passive-to-active communication from 40960 bits to 48 bits, a $853\times$ reduction.
+Table~\ref{tab:utility_results} reports diagnostic utility and communication cost. All product-quantized variants exceed \texttt{A\_plain\_vfl} on WACC while using 32--128 bits. The strongest point is \texttt{H\_vq\_K64}: it achieves 0.7860 WACC at 48 bits, compared with 0.7516 for continuous VFL. This is a 3.4 percentage-point gain and a $853\times$ payload reduction.
 
 \begin{table*}[t]
 \caption{Utility and communication results on ISIC-2019. WACC is balanced multiclass accuracy over eight classes. Tail WACC is mean recall over AK, DF, VASC, and SCC. Values are averaged over two seeds.}
@@ -202,16 +204,16 @@ Method & Bits & WACC & Tail WACC \\
 \end{tabular}
 \end{table*}
 
-The low-bit baselines show that compression alone is not sufficient. The frozen random-sign projection \texttt{S\_rand\_sign} uses 128 bits but drops to 0.7232 WACC, below the continuous baseline. The learned sign baseline \texttt{S\_sign\_quant} recovers much of the utility at 0.7703 WACC, but \texttt{H\_vq\_K64} is higher by 1.6 percentage points while using fewer than half as many bits. The projection-only control \texttt{A\_proj\_vfl} improves over \texttt{A\_plain\_vfl} at 4096 bits, but it remains below every VQ variant.
+The compression controls show that smaller payloads alone do not explain the result. The frozen random-sign projection reaches 0.7232 WACC, below continuous VFL. Learned sign quantization improves to 0.7703 WACC. \texttt{H\_vq\_K64} surpasses both while using fewer than half the 128-bit sign payload.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\columnwidth]{../figures/pareto_wacc_vs_ssim.pdf}
+\includegraphics[width=\columnwidth]{figures/pareto_wacc_vs_ssim.pdf}
 \caption{Privacy-utility Pareto curve. Higher WACC is better and lower SSIM means weaker reconstruction. \texttt{H\_vq\_K64} lies at the best observed utility and lowest observed SSIM while using 48 bits.}
 \label{fig:pareto}
 \end{figure}
 
-Table~\ref{tab:privacy_results} reports reconstruction privacy under the 50-epoch InverNetV9 attacker. Higher SSIM and lower LPIPS indicate more faithful reconstructions, so lower SSIM and higher LPIPS are preferred. The continuous baseline is easiest to reconstruct, with SSIM 0.6215 and LPIPS 0.1108. All product-quantized methods reduce SSIM to the 0.5030--0.5397 range and increase LPIPS to the 0.1936--0.2413 range. The same \texttt{H\_vq\_K64} model that gives the best WACC also gives the lowest SSIM, 0.5030.
+Table~\ref{tab:privacy_results} reports reconstruction privacy under the 50-epoch InverNetV9 attacker. Higher SSIM and lower LPIPS indicate more faithful reconstructions. The continuous baseline is easiest to reconstruct, with SSIM 0.6215. Product-quantized methods reduce SSIM to 0.5030--0.5397. \texttt{H\_vq\_K64} gives the lowest SSIM and highest LPIPS, 0.5030 and 0.2413.
 
 \begin{table*}[t]
 \caption{Reconstruction privacy results under InverNetV9. SSIM and LPIPS are averaged over two seeds and all 5,067 validation samples per seed. Lower SSIM and higher LPIPS indicate weaker reconstruction.}
@@ -238,23 +240,23 @@ Method & Bits & SSIM & LPIPS \\
 \end{tabular}
 \end{table*}
 
-Figure~\ref{fig:pareto} summarizes the joint tradeoff. \texttt{H\_vq\_K64} is Pareto-dominant among the evaluated methods: it has the highest WACC, the lowest SSIM, and a 48-bit payload. This point improves over \texttt{A\_plain\_vfl} on all three axes: WACC increases from 0.7516 to 0.7860, SSIM decreases from 0.6215 to 0.5030, and communication falls by $853\times$. The projection-only baseline also reduces communication and reconstruction fidelity relative to \texttt{A\_plain\_vfl}, but it does not match the VQ Pareto points: \texttt{A\_proj\_vfl} uses 4096 bits, reaches 0.7665 WACC, and remains at 0.5845 SSIM.
+Figure~\ref{fig:pareto} summarizes the joint tradeoff. \texttt{H\_vq\_K64} is Pareto-dominant among the evaluated methods. Relative to \texttt{A\_plain\_vfl}, WACC rises from 0.7516 to 0.7860, SSIM falls from 0.6215 to 0.5030, and communication decreases by $853\times$. The projection-only control does not match this point: \texttt{A\_proj\_vfl} uses 4096 bits, reaches 0.7665 WACC, and remains at 0.5845 SSIM.
 
 \begin{figure}[t]
 \centering
 \subfigure[Communication vs. utility.]{
-    \includegraphics[width=0.48\columnwidth]{../figures/bits_vs_wacc.pdf}
+    \includegraphics[width=0.48\columnwidth]{figures/bits_vs_wacc.pdf}
 }
 \subfigure[Communication vs. reconstruction.]{
-    \includegraphics[width=0.48\columnwidth]{../figures/bits_vs_ssim.pdf}
+    \includegraphics[width=0.48\columnwidth]{figures/bits_vs_ssim.pdf}
 }
 \caption{Communication trends. VQ methods occupy the 32--128 bit range while matching or exceeding the continuous baselines on WACC and reducing reconstruction SSIM.}
 \label{fig:bits}
 \end{figure}
 
-The equal-bit comparison at 128 bits is between \texttt{H\_vq\_M16} and \texttt{S\_sign\_quant}. \texttt{H\_vq\_M16} reaches 0.7748 WACC, compared with 0.7703 for \texttt{S\_sign\_quant}, a gain of 0.5 percentage points. Their reconstruction metrics are effectively tied: SSIM is 0.5397 for \texttt{H\_vq\_M16} and 0.5382 for \texttt{S\_sign\_quant}, a gap of only 0.0015. We therefore do not interpret the 128-bit result as a privacy advantage for VQ. The supported conclusion is that product quantization gives better utility at equivalent empirical reconstruction privacy.
+At identical 128-bit communication cost, \texttt{H\_vq\_M16} achieves 0.5 percentage points higher WACC than \texttt{S\_sign\_quant}. The SSIM difference is only 0.002 (0.540 vs. 0.538), so we treat privacy as equivalent. This supports a utility gain for VQ-based transmission, not a privacy advantage.
 
-The bit-sweep plots in Figure~\ref{fig:bits} show the same pattern from another view. Product quantization reduces the passive payload by 320--1280$\times$ relative to \texttt{A\_plain\_vfl}, yet all VQ variants stay above the continuous baseline in WACC. Within VQ, \texttt{H\_vq\_M4} is the most compressed point at 32 bits and still reaches 0.7706 WACC with SSIM 0.5118. Increasing to 128 bits with \texttt{H\_vq\_M16} raises WACC only to 0.7748 while increasing SSIM to 0.5397, suggesting that the most useful VQ operating points are in the stronger-bottleneck regime.
+The bit-sweep plots in Figure~\ref{fig:bits} give the communication view of the same result. VQ methods occupy the 32--128 bit range while staying above continuous VFL in WACC and below it in SSIM. We discuss the sensitivity to $K$, $M$, commitment weight, and initialization in the next section.
 
 % TODO: Add the aligned reconstruction grid once invernet_grid_regen.ipynb produces the final image file.
 
@@ -263,7 +265,7 @@ The bit-sweep plots in Figure~\ref{fig:bits} show the same pattern from another 
 
 The main empirical pattern is that the discrete bottleneck improves WACC instead of merely preserving it. A plausible explanation is representation regularization. The 128-dimensional projection is still continuous, high precision, and easy for the active classifier to overfit. Product quantization forces each subspace to choose one of $K$ learned prototypes, so only variation captured by the codebooks reaches the active side. This removes fine-grained embedding variation that is not needed for the diagnostic task while preserving the class-relevant structure that the classifier can use.
 
-We test this explanation with silhouette scores \citep{rousseeuw1987silhouettes} computed on transmitted validation representations using cosine distance. Table~\ref{tab:silhouette} shows that all VQ variants have higher silhouette than \texttt{A\_plain\_vfl}, despite using far fewer bits. The strongest value is \texttt{H\_vq\_M4} at 0.136. \texttt{H\_vq\_K64} and \texttt{H\_vq\_K256} both reach 0.074, compared with 0.015 for \texttt{A\_plain\_vfl}. Within the $M$ sweep, the silhouette scores decrease from $M=4$ to $M=16$, matching the view that fewer subspaces impose a stronger bottleneck. The t-SNE visualization \citep{vandermaaten2008tsne} in Figure~\ref{fig:embedding_analysis} is consistent with the same interpretation: the VQ representation forms more class-coherent neighborhoods than the continuous baseline.
+We test this explanation with silhouette scores \citep{rousseeuw1987silhouettes} computed on transmitted validation representations using cosine distance. Table~\ref{tab:silhouette} shows that all VQ variants have higher silhouette than \texttt{A\_plain\_vfl}, despite using far fewer bits. The strongest value is \texttt{H\_vq\_M4} at 0.136. \texttt{H\_vq\_K64} and \texttt{H\_vq\_K256} both reach 0.074, compared with 0.015 for \texttt{A\_plain\_vfl}. The projection-only control has silhouette -0.015, isolating the effect of VQ discretization. Within the $M$ sweep, silhouette decreases from $M=4$ to $M=16$, matching the view that fewer subspaces impose a stronger bottleneck. The t-SNE visualization \citep{vandermaaten2008tsne} in Figure~\ref{fig:embedding_analysis} is consistent with the same interpretation: the VQ representation forms more class-coherent neighborhoods than the continuous baseline.
 
 \begin{table}[t]
 \caption{Embedding structure on validation representations. Silhouette is computed with cosine distance on a 3000-sample validation subset. Codebook utilization reports the fraction of codebook entries used by VQ methods.}
@@ -289,10 +291,10 @@ Method & Silhouette & Util. & Bits \\
 \begin{figure*}[t]
 \centering
 \subfigure[Silhouette by method.]{
-    \includegraphics[width=0.43\textwidth]{../embedding_analysis/silhouette_by_method.pdf}
+    \includegraphics[width=0.43\textwidth]{embedding_analysis/silhouette_by_method.pdf}
 }
 \subfigure[t-SNE comparison.]{
-    \includegraphics[width=0.53\textwidth]{../embedding_analysis/tsne_comparison.pdf}
+    \includegraphics[width=0.53\textwidth]{embedding_analysis/tsne_comparison.pdf}
 }
 \caption{Representation analysis. VQ improves class separation in transmitted representations, while high codebook utilization rules out collapse as the explanation.}
 \label{fig:embedding_analysis}
@@ -314,13 +316,14 @@ The commitment-weight ablation is non-monotonic. At $K=256$ and $M=8$, $\beta=0.
 
 The initialization ablation is also secondary. Random codebook initialization, \texttt{H\_vq\_no\_kmeans}, reaches 0.7790 WACC, slightly above \texttt{H\_vq\_K256} at 0.7727, while \texttt{H\_vq\_K256} has lower SSIM, 0.5135 versus 0.5202. This suggests K-means++ initialization is not required for utility, although it may give a slightly less reconstructable representation at the same $K$, $M$, and $\beta$. We do not treat this as a main claim because the differences are small compared with the gap between VQ and continuous transmission.
 
-\subsection{Limits of the Privacy Claim}
+\subsection{Limitations}
 
-The privacy claim in this paper is empirical and threat-model specific. InverNetV9 is a strong residual decoder for passive feature inversion, but it is still a chosen attacker rather than an optimal adversary. A stronger decoder, a diffusion-based inversion model, or an attacker with more side information could change the absolute reconstruction scores. The results should therefore be read as evidence that product quantization reduces reconstructability under a controlled passive inversion evaluation, not as a formal privacy guarantee or a differential privacy bound.
-
-The threat model also excludes active malicious behavior. URVFL \citep{yao2025urvfl} studies a stronger setting in which a malicious participant uses label information and generated gradients to improve reconstruction while staying difficult to detect. Our bottleneck is designed to reduce information in the transmitted passive representation; it is not evaluated as a defense against gradient-spoofing attacks. URVFL-class attacks are therefore future work rather than a baseline we claim to defeat.
-
-Finally, the experimental evidence is limited to ISIC-2019. The dataset is appropriate for the image/metadata VFL partition, but it does not establish cross-domain medical generalization. Future work should test the same bottleneck on additional medical VFL settings, evaluate stronger inversion families, and develop formal privacy bounds that connect codebook size, subspace count, and reconstruction leakage.
+\begin{enumerate}
+    \item \textbf{Threat model scope.} URVFL \citep{yao2025urvfl} studies active malicious behavior with label information and generated gradients. Our bottleneck reduces information in transmitted passive representations, but URVFL-class attacks remain future work.
+    \item \textbf{Single dataset.} We evaluate on ISIC-2019 only. The results support the image/metadata VFL setting, but cross-domain medical generalization remains unverified.
+    \item \textbf{No formal privacy bounds.} InverNetV9 measures empirical reconstructability under a chosen attacker. A stronger decoder, diffusion-based inversion model, or attacker with more side information could change the absolute reconstruction scores.
+    \item \textbf{Synthetic federation.} The passive/active party split is constructed from one benchmark rather than collected from separate institutions. Future work should test the bottleneck in real multi-institutional VFL deployments.
+\end{enumerate}
 
 \section{Conclusion}
 \textit{Use the conclusion to identify any remaining gaps and limitations throughout your work. Summarize your key findings and what should be the focus of research regarding this topic in the future knowing the information that you know now.}
