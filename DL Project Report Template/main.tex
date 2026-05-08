@@ -143,7 +143,88 @@ We use fold 0 from the cached ISIC-2019 split: 20,264 training samples and 5,067
 The primary utility metric is WACC, implemented as balanced multiclass accuracy and aligned with the ISIC-2019 goal metric \citep{isic2019challenge}. We also report tail WACC, the mean recall over the four rarest classes in our training distribution: AK, DF, VASC, and SCC. For each method and seed, the best checkpoint is selected by validation WACC. Reconstruction metrics are then computed by training InverNetV9 on the corresponding training split representations and evaluating on all 5,067 validation samples.
 
 \section{Results}
-\textit{This section is essential in terms of actually demonstrating your improvements via tables, figures, graphs. You will summarize key findings, and your improvements over the baseline along with any trends that support or negate your hypotheses. }
+Table~\ref{tab:utility_results} reports diagnostic utility and communication cost for all 11 methods. All product-quantized variants improve WACC over the continuous VFL baseline while using between 32 and 128 bits per sample. The strongest operating point is \texttt{H\_vq\_K64}, which reaches $0.7860 \pm 0.0072$ WACC using 48 bits. Compared with \texttt{A\_plain\_vfl}, this is a gain of 3.4 percentage points while reducing passive-to-active communication from 40960 bits to 48 bits, a $853\times$ reduction.
+
+\begin{table*}[t]
+\caption{Utility and communication results on ISIC-2019. WACC is balanced multiclass accuracy over eight classes. Tail WACC is mean recall over AK, DF, VASC, and SCC. Values are averaged over two seeds.}
+\label{tab:utility_results}
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrr}
+\toprule
+Method & Bits & WACC & Tail WACC \\
+\midrule
+\texttt{A\_plain\_vfl} & 40960 & $0.7516 \pm 0.0043$ & 0.7880 \\
+\texttt{A\_proj\_vfl} & 4096 & $0.7665 \pm 0.0013$ & 0.7933 \\
+\texttt{S\_rand\_sign} & 128 & $0.7232 \pm 0.0067$ & 0.7675 \\
+\texttt{S\_sign\_quant} & 128 & $0.7703 \pm 0.0062$ & 0.7955 \\
+\texttt{H\_vq\_K64} & 48 & $\mathbf{0.7860 \pm 0.0072}$ & \textbf{0.8095} \\
+\texttt{H\_vq\_K256} & 64 & $0.7727 \pm 0.0034$ & 0.7907 \\
+\texttt{H\_vq\_no\_kmeans} & 64 & $0.7790 \pm 0.0003$ & 0.7997 \\
+\texttt{H\_vq\_M4} & 32 & $0.7706 \pm 0.0049$ & 0.7885 \\
+\texttt{H\_vq\_M16} & 128 & $0.7748 \pm 0.0017$ & 0.7917 \\
+\texttt{H\_vq\_commit\_low} & 64 & $0.7781 \pm 0.0069$ & 0.7913 \\
+\texttt{H\_vq\_commit\_high} & 64 & $0.7803 \pm 0.0014$ & 0.8017 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+The low-bit baselines show that compression alone is not sufficient. The frozen random-sign projection \texttt{S\_rand\_sign} uses 128 bits but drops to 0.7232 WACC, below the continuous baseline. The learned sign baseline \texttt{S\_sign\_quant} recovers much of the utility at 0.7703 WACC, but \texttt{H\_vq\_K64} is higher by 1.6 percentage points while using fewer than half as many bits. The projection-only control \texttt{A\_proj\_vfl} improves over \texttt{A\_plain\_vfl} at 4096 bits, but it remains below every VQ variant.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{../figures/pareto_wacc_vs_ssim.pdf}
+\caption{Privacy-utility Pareto curve. Higher WACC is better and lower SSIM means weaker reconstruction. \texttt{H\_vq\_K64} lies at the best observed utility and lowest observed SSIM while using 48 bits.}
+\label{fig:pareto}
+\end{figure}
+
+Table~\ref{tab:privacy_results} reports reconstruction privacy under the 50-epoch InverNetV9 attacker. Higher SSIM and lower LPIPS indicate more faithful reconstructions, so lower SSIM and higher LPIPS are preferred. The continuous baseline is easiest to reconstruct, with SSIM 0.6215 and LPIPS 0.1108. All product-quantized methods reduce SSIM to the 0.5030--0.5397 range and increase LPIPS to the 0.1936--0.2413 range. The same \texttt{H\_vq\_K64} model that gives the best WACC also gives the lowest SSIM, 0.5030.
+
+\begin{table*}[t]
+\caption{Reconstruction privacy results under InverNetV9. SSIM and LPIPS are averaged over two seeds and all 5,067 validation samples per seed. Lower SSIM and higher LPIPS indicate weaker reconstruction.}
+\label{tab:privacy_results}
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrr}
+\toprule
+Method & Bits & SSIM & LPIPS \\
+\midrule
+\texttt{A\_plain\_vfl} & 40960 & $0.6215 \pm 0.0014$ & $0.1108 \pm 0.0016$ \\
+\texttt{A\_proj\_vfl} & 4096 & $0.5845 \pm 0.0023$ & $0.1386 \pm 0.0025$ \\
+\texttt{S\_rand\_sign} & 128 & $0.5289 \pm 0.0010$ & $0.2137 \pm 0.0009$ \\
+\texttt{S\_sign\_quant} & 128 & $0.5382 \pm 0.0044$ & $0.1961 \pm 0.0027$ \\
+\texttt{H\_vq\_K64} & 48 & $\mathbf{0.5030 \pm 0.0051}$ & $\mathbf{0.2413 \pm 0.0034}$ \\
+\texttt{H\_vq\_K256} & 64 & $0.5135 \pm 0.0021$ & $0.2274 \pm 0.0037$ \\
+\texttt{H\_vq\_no\_kmeans} & 64 & $0.5202 \pm 0.0035$ & $0.2321 \pm 0.0020$ \\
+\texttt{H\_vq\_M4} & 32 & $0.5118 \pm 0.0012$ & $0.2385 \pm 0.0013$ \\
+\texttt{H\_vq\_M16} & 128 & $0.5397 \pm 0.0021$ & $0.1936 \pm 0.0026$ \\
+\texttt{H\_vq\_commit\_low} & 64 & $0.5123 \pm 0.0027$ & $0.2262 \pm 0.0014$ \\
+\texttt{H\_vq\_commit\_high} & 64 & $0.5118 \pm 0.0034$ & $0.2306 \pm 0.0020$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Figure~\ref{fig:pareto} summarizes the joint tradeoff. \texttt{H\_vq\_K64} is Pareto-dominant among the evaluated methods: it has the highest WACC, the lowest SSIM, and a 48-bit payload. This point improves over \texttt{A\_plain\_vfl} on all three axes: WACC increases from 0.7516 to 0.7860, SSIM decreases from 0.6215 to 0.5030, and communication falls by $853\times$. The projection-only baseline also reduces communication and reconstruction fidelity relative to \texttt{A\_plain\_vfl}, but it does not match the VQ Pareto points: \texttt{A\_proj\_vfl} uses 4096 bits, reaches 0.7665 WACC, and remains at 0.5845 SSIM.
+
+\begin{figure}[t]
+\centering
+\subfigure[Communication vs. utility.]{
+    \includegraphics[width=0.48\columnwidth]{../figures/bits_vs_wacc.pdf}
+}
+\subfigure[Communication vs. reconstruction.]{
+    \includegraphics[width=0.48\columnwidth]{../figures/bits_vs_ssim.pdf}
+}
+\caption{Communication trends. VQ methods occupy the 32--128 bit range while matching or exceeding the continuous baselines on WACC and reducing reconstruction SSIM.}
+\label{fig:bits}
+\end{figure}
+
+The equal-bit comparison at 128 bits is between \texttt{H\_vq\_M16} and \texttt{S\_sign\_quant}. \texttt{H\_vq\_M16} reaches 0.7748 WACC, compared with 0.7703 for \texttt{S\_sign\_quant}, a gain of 0.5 percentage points. Their reconstruction metrics are effectively tied: SSIM is 0.5397 for \texttt{H\_vq\_M16} and 0.5382 for \texttt{S\_sign\_quant}, a gap of only 0.0015. We therefore do not interpret the 128-bit result as a privacy advantage for VQ. The supported conclusion is that product quantization gives better utility at equivalent empirical reconstruction privacy.
+
+The bit-sweep plots in Figure~\ref{fig:bits} show the same pattern from another view. Product quantization reduces the passive payload by 320--1280$\times$ relative to \texttt{A\_plain\_vfl}, yet all VQ variants stay above the continuous baseline in WACC. Within VQ, \texttt{H\_vq\_M4} is the most compressed point at 32 bits and still reaches 0.7706 WACC with SSIM 0.5118. Increasing to 128 bits with \texttt{H\_vq\_M16} raises WACC only to 0.7748 while increasing SSIM to 0.5397, suggesting that the most useful VQ operating points are in the stronger-bottleneck regime.
+
+% TODO: Add the aligned reconstruction grid once invernet_grid_regen.ipynb produces the final image file.
 
 \section{Discussion}
 \textit{The purpose of this section is to discuss the causes and reasons for your improvements. This can be supported via multiple ablation studies or different experiments that analyze your novelty. You can also detail any shortcomings in your research which might attribute to some negative or positive results but primarily should be in favor of 'explaining' why your method works, what is specifically making it work, and how the method might work in different settings as well to boost your claims.}
