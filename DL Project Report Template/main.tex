@@ -219,6 +219,8 @@ Method & Bits & WACC & Tail WACC \\
 
 The compression controls show that smaller payloads alone do not explain the result. The frozen random-sign projection reaches 0.7232 WACC, below continuous VFL. Learned sign quantization improves to 0.7703 WACC. \texttt{H\_vq\_K64} surpasses both while using fewer than half the 128-bit sign payload.
 
+Tail WACC follows the same pattern. \texttt{H\_vq\_K64} reaches the highest tail score, 0.8095, compared with 0.7880 for \texttt{A\_plain\_vfl}. This suggests that the VQ bottleneck preserves useful signal for minority classes rather than improving balanced accuracy only through majority-class behavior.
+
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/pareto_wacc_vs_ssim.pdf}
@@ -334,7 +336,7 @@ The codebook-size ablation shows that a smaller codebook can improve utility. Wi
 
 The number of subspaces $M$ mainly controls bottleneck strength. At $K=256$ and $\beta=0.25$, WACC is nearly flat across the tested range: 0.7706 for $M=4$, 0.7727 for $M=8$, and 0.7748 for $M=16$. The privacy trend is more sensitive: SSIM rises from 0.5118 at $M=4$ to 0.5397 at $M=16$. This means the 32-bit $M=4$ setting is a strong compression point, while the 128-bit $M=16$ setting gives only a small utility gain for a noticeable increase in reconstructability.
 
-The commitment-weight ablation is non-monotonic. At $K=256$ and $M=8$, $\beta=0.10$, $\beta=0.25$, and $\beta=0.50$ obtain WACC values of 0.7781, 0.7727, and 0.7803. These differences are small relative to the main method-family gaps. The clearest signal is in tail WACC: \texttt{H\_vq\_commit\_high} reaches 0.8017, higher than the other $K=256,M=8$ commitment settings. Commitment weight therefore appears to tune how strongly the projected embedding is forced toward discrete prototypes, but it is not the primary driver of the Pareto improvement.
+The commitment-weight ablation is non-monotonic. At $K=256$ and $M=8$, $\beta=0.10$, $\beta=0.25$, and $\beta=0.50$ obtain WACC values of 0.7781, 0.7727, and 0.7803. These differences are small relative to the main method-family gaps. The clearest signal is in tail WACC: \texttt{H\_vq\_commit\_high} reaches 0.8017, higher than the other $K=256,M=8$ commitment settings. One possible explanation is that stronger commitment discourages the representation from clustering too tightly around majority-class variation, improving coverage of rarer class embeddings. Commitment weight therefore appears to tune how strongly the projected embedding is forced toward discrete prototypes, but it is not the primary driver of the Pareto improvement.
 
 The initialization ablation is also secondary. Random codebook initialization, \texttt{H\_vq\_no\_kmeans}, reaches 0.7790 WACC, slightly above \texttt{H\_vq\_K256} at 0.7727, while \texttt{H\_vq\_K256} has lower SSIM, 0.5135 versus 0.5202. This suggests K-means++ initialization is not required for utility, although it may give a slightly less reconstructable representation at the same $K$, $M$, and $\beta$. We do not treat this as a main claim because the differences are small compared with the gap between VQ and continuous transmission.
 
@@ -356,6 +358,7 @@ A non-obvious finding is that a smaller codebook can be better, not worse. Stron
     \item Evaluate URVFL-class active attacks and stronger diffusion-based inversion models.
     \item Test the bottleneck across other medical modalities and real multi-institutional VFL splits.
     \item Develop formal privacy bounds linking codebook size, subspace count, and reconstruction leakage.
+    \item Examine per-class recall and codebook usage to test whether VQ consistently improves minority-class coverage.
     \item Combine product quantization with stronger multimodal fusion while isolating the transmission effect.
 \end{itemize}
 
