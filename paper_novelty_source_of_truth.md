@@ -500,12 +500,14 @@ Before writing claims, verify these:
 - `results_final/checkpoints/*.pt` exists for all 11 methods x 2 seeds.
 - `results_analysis.md` shows Stage B complete for all 11 methods × 2 seeds at 50 InverNet epochs.
 - `results_final/` contains all 22 recon_*.json (SSIM/LPIPS) alongside the 22 result_*.json (WACC).
+- `embedding_analysis/` contains silhouette_table.json, silhouette_by_method.pdf/png, tsne_comparison.pdf/png, and individual t-SNE PNGs. Regularization hypothesis confirmed.
+- `figures/` contains pareto_wacc_vs_ssim.pdf/png and supporting bits-vs-metric plots.
 - PAD external validation dropped; results were poor.
 
 ### Checked against primary/external sources
 
 - ISIC-2019 official page confirms 25,331 training images across 8 training categories and balanced multiclass accuracy as the goal metric.
-- PAD-UFES-20 Mendeley page confirms 2,298 samples, six final classes after clustering Bowen's disease into SCC, smartphone PNG images, metadata, 1,373 patients, and 1,641 lesions.
+- PAD-UFES-20: dropped from paper — results were poor. Do not cite or reference in the paper.
 - SLICE-3D Scientific Data page confirms over 400,000 lesion crops from 3D total-body photography and seven dermatologic centers.
 - UIFV arXiv page confirms intermediate feature data inversion in VFL.
 - URVFL arXiv/NDSS pages confirm malicious gradient-based reconstruction and NDSS 2025 acceptance.
@@ -518,7 +520,7 @@ Before writing claims, verify these:
 1. The ESANN 2024 paper may contain details beyond the abstract that require stronger positioning.
 2. Clinical meaning of SSIM/LPIPS for dermatology reconstruction still needs either visual grids, expert interpretation, or a carefully worded limitation.
 3. A stronger inversion attacker could raise reconstruction quality; the current paper should frame InverNetV9 as an empirical attacker, not as a final privacy proof.
-4. PAD and ISIC-2024 are not current evidence until their experiments are run.
+4. ISIC-2024/SLICE-3D is not current evidence — future extension only. PAD-UFES-20 is dropped.
 
 ---
 

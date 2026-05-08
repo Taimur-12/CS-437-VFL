@@ -132,7 +132,7 @@ All values final: WACC from 2 seeds, SSIM/LPIPS from 50-epoch InverNet Stage B �
 
 **What to call our approach:** "Product Quantization bottleneck for VFL privacy" or "VQ-based communication bottleneck." Avoid calling it "InverNet" in the method section — that's the attacker.
 
-**VQ layer description:** The passive client's 1280-d EfficientNet-B0 embedding is split into M equal subspaces of 1280/M dimensions. Each subspace is independently quantized to the nearest entry in a learned codebook of K vectors, trained jointly with straight-through gradients. Only the M codebook indices are transmitted (M·log₂K bits). The active client reconstructs the embedding by codebook lookup before classification.
+**VQ layer description:** The passive client's EfficientNet-B0 embedding (1280-d) is first projected to a learned 128-d representation. This 128-d vector is then split into M equal subspaces of 128/M dimensions. Each subspace is independently quantized to the nearest entry in a learned codebook of K vectors, trained jointly with straight-through gradients. Only the M codebook indices are transmitted (M·log₂K bits). The active client reconstructs the 128-d embedding by codebook lookup before classification. Note: VQ operates on the 128-d projection, NOT the 1280-d EfficientNet embedding — a critical reviewer trap.
 
 **Straight-through estimator:** Required because nearest-neighbor lookup is not differentiable. Gradients pass through as if quantization didn't happen (standard VQ-VAE approach, van den Oord et al. 2017).
 
@@ -145,7 +145,7 @@ All values final: WACC from 2 seeds, SSIM/LPIPS from 50-epoch InverNet Stage B �
 - **K (codebook size):** K=64 beats K=256 by 1.3 WACC points using fewer bits. More aggressive quantization = stronger regularizer. Non-obvious finding.
 - **M (subspaces):** Nearly flat across M=4 to M=16 (0.771 → 0.773 → 0.775). M=4 is most efficient per bit.
 - **β (commitment weight):** Non-monotonic at utility level (max spread 0.007 WACC). Clearest signal is tail WACC: β=0.50 leads (0.802), suggesting harder commitment improves minority-class coverage.
-- **Init:** Random init (0.779) slightly ahead of K-means++ (0.773) on utility, but much more stable (std 0.0003 vs 0.003). May not matter for privacy — pending Stage B.
+- **Init:** Random init (0.779) slightly ahead of K-means++ (0.773) on utility, but much more stable (std 0.0003 vs 0.003). Privacy (SSIM): H_vq_no_kmeans 0.520 vs H_vq_K256 0.514 — K-means++ is fractionally more private. Neither difference is large enough to be a primary claim; frame as a stability argument for K-means++.
 
 ---
 
