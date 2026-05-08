@@ -174,7 +174,7 @@ The low-bit baselines show that compression alone is not sufficient. The frozen 
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\columnwidth]{../figures/pareto_wacc_vs_ssim.pdf}
+\includegraphics[width=\columnwidth]{figures/pareto_wacc_vs_ssim.pdf}
 \caption{Privacy-utility Pareto curve. Higher WACC is better and lower SSIM means weaker reconstruction. \texttt{H\_vq\_K64} lies at the best observed utility and lowest observed SSIM while using 48 bits.}
 \label{fig:pareto}
 \end{figure}
@@ -211,10 +211,10 @@ Figure~\ref{fig:pareto} summarizes the joint tradeoff. \texttt{H\_vq\_K64} is Pa
 \begin{figure}[t]
 \centering
 \subfigure[Communication vs. utility.]{
-    \includegraphics[width=0.48\columnwidth]{../figures/bits_vs_wacc.pdf}
+    \includegraphics[width=0.48\columnwidth]{figures/bits_vs_wacc.pdf}
 }
 \subfigure[Communication vs. reconstruction.]{
-    \includegraphics[width=0.48\columnwidth]{../figures/bits_vs_ssim.pdf}
+    \includegraphics[width=0.48\columnwidth]{figures/bits_vs_ssim.pdf}
 }
 \caption{Communication trends. VQ methods occupy the 32--128 bit range while matching or exceeding the continuous baselines on WACC and reducing reconstruction SSIM.}
 \label{fig:bits}
@@ -227,7 +227,68 @@ The bit-sweep plots in Figure~\ref{fig:bits} show the same pattern from another 
 % TODO: Add the aligned reconstruction grid once invernet_grid_regen.ipynb produces the final image file.
 
 \section{Discussion}
-\textit{The purpose of this section is to discuss the causes and reasons for your improvements. This can be supported via multiple ablation studies or different experiments that analyze your novelty. You can also detail any shortcomings in your research which might attribute to some negative or positive results but primarily should be in favor of 'explaining' why your method works, what is specifically making it work, and how the method might work in different settings as well to boost your claims.}
+\subsection{Why Product Quantization Improves Utility}
+
+The main empirical pattern is that the discrete bottleneck improves WACC instead of merely preserving it. A plausible explanation is representation regularization. The 128-dimensional projection is still continuous, high precision, and easy for the active classifier to overfit. Product quantization forces each subspace to choose one of $K$ learned prototypes, so only variation captured by the codebooks reaches the active side. This removes fine-grained embedding variation that is not needed for the diagnostic task while preserving the class-relevant structure that the classifier can use.
+
+We test this explanation with silhouette scores \citep{rousseeuw1987silhouettes} computed on transmitted validation representations using cosine distance. Table~\ref{tab:silhouette} shows that all VQ variants have higher silhouette than \texttt{A\_plain\_vfl}, despite using far fewer bits. The strongest value is \texttt{H\_vq\_M4} at 0.136. \texttt{H\_vq\_K64} and \texttt{H\_vq\_K256} both reach 0.074, compared with 0.015 for \texttt{A\_plain\_vfl}. Within the $M$ sweep, the silhouette scores decrease from $M=4$ to $M=16$, matching the view that fewer subspaces impose a stronger bottleneck. The t-SNE visualization \citep{vandermaaten2008tsne} in Figure~\ref{fig:embedding_analysis} is consistent with the same interpretation: the VQ representation forms more class-coherent neighborhoods than the continuous baseline.
+
+\begin{table}[t]
+\caption{Embedding structure on validation representations. Silhouette is computed with cosine distance on a 3000-sample validation subset. Codebook utilization reports the fraction of codebook entries used by VQ methods.}
+\label{tab:silhouette}
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrr}
+\toprule
+Method & Silhouette & Util. & Bits \\
+\midrule
+\texttt{A\_plain\_vfl} & 0.015 & -- & 40960 \\
+\texttt{A\_proj\_vfl} & -0.015 & -- & 4096 \\
+\texttt{S\_sign\_quant} & 0.058 & -- & 128 \\
+\texttt{H\_vq\_K64} & 0.074 & 98.8\% & 48 \\
+\texttt{H\_vq\_K256} & 0.074 & 97.9\% & 64 \\
+\texttt{H\_vq\_M4} & \textbf{0.136} & 92.1\% & 32 \\
+\texttt{H\_vq\_M16} & 0.053 & 99.5\% & 128 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure*}[t]
+\centering
+\subfigure[Silhouette by method.]{
+    \includegraphics[width=0.43\textwidth]{embedding_analysis/silhouette_by_method.pdf}
+}
+\subfigure[t-SNE comparison.]{
+    \includegraphics[width=0.53\textwidth]{embedding_analysis/tsne_comparison.pdf}
+}
+\caption{Representation analysis. VQ improves class separation in transmitted representations, while high codebook utilization rules out collapse as the explanation.}
+\label{fig:embedding_analysis}
+\end{figure*}
+
+\subsection{Why Projection Alone Is Not Enough}
+
+\texttt{A\_proj\_vfl} is the key control for separating dimensionality reduction from quantization. It compresses the passive representation from 1280 continuous dimensions to 128 continuous dimensions and improves WACC from 0.7516 to 0.7665, but its reconstruction SSIM remains 0.5845. In contrast, \texttt{H\_vq\_K64} operates on the same 128-dimensional projected space and reaches 0.7860 WACC with SSIM 0.5030. The gap between \texttt{A\_proj\_vfl} and \texttt{H\_vq\_K64} shows that the projection layer alone does not explain either the privacy gain or the full utility gain.
+
+The silhouette result strengthens this control. \texttt{A\_proj\_vfl} has a negative silhouette score, -0.015, while VQ methods are positive. This is the clearest evidence that the regularization effect comes from discretizing the projected representation rather than merely shrinking the EfficientNet embedding. The codebook utilization values, 92.1--99.5\%, also rule out a trivial explanation in which the quantizer collapses to a small number of codes.
+
+\subsection{Ablation Findings}
+
+The codebook-size ablation shows that a smaller codebook can improve utility. With $M=8$ and $\beta=0.25$, \texttt{H\_vq\_K64} reaches 0.7860 WACC, while \texttt{H\_vq\_K256} reaches 0.7727. The smaller codebook also reduces SSIM from 0.5135 to 0.5030 and reduces communication from 64 to 48 bits. This pattern supports the regularization view: a more aggressive bottleneck removes more nuisance variation, and in this setting that helps both classification and reconstruction privacy.
+
+The number of subspaces $M$ mainly controls bottleneck strength. At $K=256$ and $\beta=0.25$, WACC is nearly flat across the tested range: 0.7706 for $M=4$, 0.7727 for $M=8$, and 0.7748 for $M=16$. The privacy trend is more sensitive: SSIM rises from 0.5118 at $M=4$ to 0.5397 at $M=16$. This means the 32-bit $M=4$ setting is a strong compression point, while the 128-bit $M=16$ setting gives only a small utility gain for a noticeable increase in reconstructability.
+
+The commitment-weight ablation is non-monotonic. At $K=256$ and $M=8$, $\beta=0.10$, $\beta=0.25$, and $\beta=0.50$ obtain WACC values of 0.7781, 0.7727, and 0.7803. These differences are small relative to the main method-family gaps. The clearest signal is in tail WACC: \texttt{H\_vq\_commit\_high} reaches 0.8017, higher than the other $K=256,M=8$ commitment settings. Commitment weight therefore appears to tune how strongly the projected embedding is forced toward discrete prototypes, but it is not the primary driver of the Pareto improvement.
+
+The initialization ablation is also secondary. Random codebook initialization, \texttt{H\_vq\_no\_kmeans}, reaches 0.7790 WACC, slightly above \texttt{H\_vq\_K256} at 0.7727, while \texttt{H\_vq\_K256} has lower SSIM, 0.5135 versus 0.5202. This suggests K-means++ initialization is not required for utility, although it may give a slightly less reconstructable representation at the same $K$, $M$, and $\beta$. We do not treat this as a main claim because the differences are small compared with the gap between VQ and continuous transmission.
+
+\subsection{Limits of the Privacy Claim}
+
+The privacy claim in this paper is empirical and threat-model specific. InverNetV9 is a strong residual decoder for passive feature inversion, but it is still a chosen attacker rather than an optimal adversary. A stronger decoder, a diffusion-based inversion model, or an attacker with more side information could change the absolute reconstruction scores. The results should therefore be read as evidence that product quantization reduces reconstructability under a controlled passive inversion evaluation, not as a formal privacy guarantee or a differential privacy bound.
+
+The threat model also excludes active malicious behavior. URVFL \citep{yao2025urvfl} studies a stronger setting in which a malicious participant uses label information and generated gradients to improve reconstruction while staying difficult to detect. Our bottleneck is designed to reduce information in the transmitted passive representation; it is not evaluated as a defense against gradient-spoofing attacks. URVFL-class attacks are therefore future work rather than a baseline we claim to defeat.
+
+Finally, the experimental evidence is limited to ISIC-2019. The dataset is appropriate for the image/metadata VFL partition, but it does not establish cross-domain medical generalization. Future work should test the same bottleneck on additional medical VFL settings, evaluate stronger inversion families, and develop formal privacy bounds that connect codebook size, subspace count, and reconstruction leakage.
 
 \section{Conclusion}
 \textit{Use the conclusion to identify any remaining gaps and limitations throughout your work. Summarize your key findings and what should be the focus of research regarding this topic in the future knowing the information that you know now.}
