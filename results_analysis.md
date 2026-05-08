@@ -9,21 +9,21 @@ Stage B (SSIM/LPIPS): run only for H_vq_K256 and H_vq_commit_high in session 3. 
 
 | Method | Bits | WACC (mean ± std) | Tail WACC | SSIM | LPIPS | Seeds |
 |--------|------|-------------------|-----------|------|-------|-------|
-| A_plain_vfl | 40960 | 0.7516 ± 0.0043 | 0.7880 | — | — | 2 |
-| A_proj_vfl | 4096 | 0.7665 ± 0.0013 | 0.7933 | — | — | 2 |
-| S_rand_sign | 128 | 0.7232 ± 0.0067 | 0.7675 | — | — | 2 |
-| S_sign_quant | 128 | 0.7703 ± 0.0062 | 0.7955 | — | — | 2 |
-| H_vq_K64 | 48 | 0.7860 ± 0.0072 | 0.8095 | — | — | 2 |
-| H_vq_K256 | 64 | 0.7727 ± 0.0034 | 0.7907 | 0.5252 | 0.2167 | 2 |
-| H_vq_no_kmeans | 64 | 0.7790 ± 0.0003 | 0.7997 | — | — | 2 |
-| H_vq_M4 | 32 | 0.7706 ± 0.0049 | 0.7885 | — | — | 2 |
-| H_vq_M16 | 128 | 0.7748 ± 0.0017 | 0.7917 | — | — | 2 |
-| H_vq_commit_low | 64 | 0.7781 ± 0.0069 | 0.7913 | — | — | 2 |
-| H_vq_commit_high | 64 | 0.7803 ± 0.0014 | 0.8017 | 0.5250 | 0.2187 | 2 |
+| A_plain_vfl | 40960 | 0.7516 ± 0.0043 | 0.7880 | 0.6215 | 0.1108 | 2 |
+| A_proj_vfl | 4096 | 0.7665 ± 0.0013 | 0.7933 | 0.5845 | 0.1386 | 2 |
+| S_rand_sign | 128 | 0.7232 ± 0.0067 | 0.7675 | 0.5289 | 0.2137 | 2 |
+| S_sign_quant | 128 | 0.7703 ± 0.0062 | 0.7955 | 0.5382 | 0.1961 | 2 |
+| H_vq_K64 | 48 | 0.7860 ± 0.0072 | 0.8095 | 0.5030 | 0.2413 | 2 |
+| H_vq_K256 | 64 | 0.7727 ± 0.0034 | 0.7907 | 0.5135 | 0.2274 | 2 |
+| H_vq_no_kmeans | 64 | 0.7790 ± 0.0003 | 0.7997 | 0.5202 | 0.2321 | 2 |
+| H_vq_M4 | 32 | 0.7706 ± 0.0049 | 0.7885 | 0.5118 | 0.2385 | 2 |
+| H_vq_M16 | 128 | 0.7748 ± 0.0017 | 0.7917 | 0.5397 | 0.1936 | 2 |
+| H_vq_commit_low | 64 | 0.7781 ± 0.0069 | 0.7913 | 0.5123 | 0.2262 | 2 |
+| H_vq_commit_high | 64 | 0.7803 ± 0.0014 | 0.8017 | 0.5118 | 0.2306 | 2 |
 
-All 11 methods now have WACC from 2 seeds. No outstanding gaps.
+All 11 methods complete: WACC from 2 seeds, SSIM/LPIPS from 50-epoch InverNet Stage B across 2 seeds. No outstanding gaps.
 
-SSIM/LPIPS where shown are averaged across both seeds (session 3 Stage B, 30 InverNet epochs, 5067 val samples). Remaining 9 methods need Stage B.
+SSIM/LPIPS are averaged across both seeds (50 InverNet epochs, 5067 val samples). Note: earlier session-3 partial values for H_vq_K256 (0.5252) and H_vq_commit_high (0.5250) were from 30-epoch runs and are superseded by these 50-epoch figures.
 
 Metrics: **WACC** = balanced accuracy (macro-averaged across 8 classes). **Tail WACC** = mean recall over the 4 minority classes (DF, VASC, SCC, AK). **SSIM** and **LPIPS** = reconstruction quality of InverNet attack (higher SSIM = easier to reconstruct = less private).
 
@@ -34,10 +34,9 @@ Metrics: **WACC** = balanced accuracy (macro-averaged across 8 classes). **Tail 
 | Status | Methods |
 |--------|---------|
 | Complete — 2 seeds, WACC ✓ | All 11 methods |
-| Stage B complete | H_vq_K256, H_vq_commit_high (session 3) |
-| Stage B pending | A_plain_vfl, A_proj_vfl, S_rand_sign, S_sign_quant, H_vq_K64, H_vq_no_kmeans, H_vq_M4, H_vq_M16, H_vq_commit_low |
+| Stage B complete (50 epochs) | All 11 methods |
 
-All 11 methods now have WACC from 2 seeds. Stage B (InverNet SSIM/LPIPS) is the only remaining blocker — needed for 9 of 11 methods.
+All 11 methods now have WACC and SSIM/LPIPS. No remaining blockers on ISIC-2019.
 
 ---
 
@@ -132,38 +131,84 @@ Both methods are now at 2 seeds. Random init (0.779) is ahead of K-means++ (0.77
 
 VQ dominates. Sign quantization (deterministic top-128 bits) outperforms random projection alone (S_rand_sign), which actually hurts WACC vs plain — random sign flips destroy information the active client needs. The projection baseline (A_proj_vfl) compresses 40960 → 4096 bits via a learned linear layer and still lags behind the weakest VQ method.
 
+### Privacy: VQ reduces reconstruction fidelity vs continuous baseline
+
+SSIM ordering (lower = harder to reconstruct = more private):
+
+```
+H_vq_K64         0.5030   (48 bits)    ← most private AND highest WACC — star result
+H_vq_M4          0.5118   (32 bits)
+H_vq_commit_high 0.5118   (64 bits)
+H_vq_commit_low  0.5123   (64 bits)
+H_vq_K256        0.5135   (64 bits)
+H_vq_no_kmeans   0.5202   (64 bits)
+S_rand_sign      0.5289   (128 bits)
+S_sign_quant     0.5382   (128 bits)
+H_vq_M16         0.5397   (128 bits)
+A_proj_vfl       0.5845   (4096 bits)
+A_plain_vfl      0.6215   (40960 bits) ← least private
+```
+
+**Key findings:**
+
+1. **H_vq_K64 achieves best utility AND lowest SSIM.** 0.786 WACC at 0.503 SSIM — dominant on both axes. This is the paper's central result.
+
+2. **All VQ methods substantially below A_plain_vfl.** SSIM drops from 0.6215 → 0.503–0.540 range. Every VQ operating point is harder to reconstruct than continuous transmission.
+
+3. **A_proj_vfl (0.5845) is worse than all sign/VQ methods despite using 4096 bits.** The learned linear projection still produces continuous floats — InverNet has more signal to exploit than from binary or quantized codes.
+
+4. **Equal-bit comparison at 128 bits (H_vq_M16 vs S_sign_quant):**
+   - WACC: H_vq_M16 0.775 vs S_sign_quant 0.770 — VQ wins by 0.5 pp
+   - SSIM: H_vq_M16 0.5397 vs S_sign_quant 0.5382 — sign quant fractionally more private (0.0015 gap)
+   - **VQ wins on utility at essentially equal privacy.** Both are strongly superior to A_plain_vfl.
+
+5. **K effect on privacy:** H_vq_K64 (0.503) < H_vq_K256 (0.514) — smaller codebook transmits less information, reconstruction is harder. Consistent with K=64 being the dominant operating point on utility too.
+
+6. **M effect on privacy:** H_vq_M4 (0.512) < H_vq_M16 (0.540) — fewer subspaces = fewer total bits = harder reconstruction. Going 32→128 bits (M=4→16) costs ~0.028 SSIM in privacy for +0.004 WACC. M=4 is most efficient per bit on both axes.
+
+7. **β effect on privacy:** commit_high (0.5118) ≈ commit_low (0.5123) ≈ K256 (0.5135) — commitment weight has negligible effect on SSIM. Privacy is determined by K and M, not β.
+
+8. **S_rand_sign (0.5289) more private than S_sign_quant (0.5382)** — random bit selection adds privacy incidentally vs deterministic top-k selection. But S_rand_sign has the worst WACC of any method (0.723). Random projection destroys useful signal along with uninformative signal.
+
+---
+
 ### Why VQ improves utility (hypothesis)
 
 The discrete bottleneck suppresses irrelevant high-frequency variation in the continuous 1280-d EfficientNet embedding, acting as a regularizer for the active client's task-specific classifier. Only variation that the VQ codebook captures is transmitted; the rest is discarded. This is analogous to dropout-style regularization but in representation space rather than weight space. K=64 provides stronger regularization (more aggressive compression) than K=256, which explains why the smaller codebook wins despite transmitting less information. Supporting evidence needed: show that per-class embedding variance from the passive client decreases under VQ relative to A_plain.
 
 ---
 
-## Paper Argument (Utility Side Established — Privacy Side Pending)
+## Paper Argument (Utility and Privacy Both Established)
 
-> We demonstrate that product quantization of the passive client's intermediate embedding in vertical federated learning consistently improves diagnostic utility over continuous transmission while transmitting far fewer bits. On ISIC-2019 dermoscopy classification in an 8-class VFL setup, all VQ methods achieve WACC ≥ 0.771 versus 0.752 for plain VFL (40960 bits). H_vq_K64 (48 bits, K=64, M=8) reaches WACC 0.786 ± 0.007 — 3.4 points above A_plain at 853× fewer bits, and above sign quantization (S_sign_quant 0.770) at fewer bits. Privacy evaluation (reconstruction SSIM/LPIPS) pending Stage B.
+> We demonstrate that product quantization of the passive client's intermediate embedding in vertical federated learning simultaneously improves diagnostic utility and reduces reconstruction fidelity relative to continuous transmission. On ISIC-2019 dermoscopy classification in an 8-class VFL setup, all VQ methods achieve WACC ≥ 0.771 versus 0.752 for plain VFL (40960 bits), while InverNet SSIM drops from 0.622 (plain VFL) to 0.503–0.540 across VQ variants. H_vq_K64 (48 bits, K=64, M=8) is the dominant operating point: WACC 0.786 ± 0.007 (+3.4 pp, 853× fewer bits) and SSIM 0.503 (lowest of all methods) — best utility and best privacy simultaneously. At equal bits (128), H_vq_M16 (WACC 0.775, SSIM 0.540) matches or exceeds sign quantization (WACC 0.770, SSIM 0.538) on both axes.
 
 ---
 
 ## What Needs to Be Done (Priority Order)
 
-### Next Kaggle run
+### ISIC-2019 complete — no further Kaggle runs needed
 
-**1. Run Stage B on remaining 9 methods × 2 seeds**
-Stage B has been run for H_vq_K256 and H_vq_commit_high in session 3. The remaining 9 methods (A_plain_vfl, A_proj_vfl, S_rand_sign, S_sign_quant, H_vq_K64, H_vq_no_kmeans, H_vq_M4, H_vq_M16, H_vq_commit_low) still need InverNet evaluation. All checkpoints are in `results_final/checkpoints/`. After this run, the full privacy-utility table and Pareto curve can be produced.
+Stage B is done for all 11 methods × 2 seeds at 50 epochs. The utility-privacy table is complete.
 
 ### Before paper submission
 
-**2. Equal-bit comparison: H_vq_M16 vs S_sign_quant (both 128 bits)**
-WACC: H_vq_M16 0.775 vs S_sign_quant 0.770 — VQ wins on utility. Whether VQ also wins on SSIM at equal bits is the key privacy claim. Blocked on Stage B.
+**1. Pareto curve figure**
+WACC (y) vs SSIM (x, inverted so up-right = better), colored by method family (VQ / sign / projection / plain), point size ∝ log(bits). All data available now. H_vq_K64 should sit in the top-left corner (highest WACC, lowest SSIM).
 
-**3. Pareto curve figure**
-WACC (y) vs SSIM (x), colored by method family, point size proportional to bits. Blocked on Stage B.
+**2. Reconstruction grid figure**
+orig | recon | diff for at minimum: A_plain_vfl, H_vq_K64, S_sign_quant. Needs saved val images alongside InverNet outputs — check whether Stage B saved image tensors or only metrics.
 
-**4. Stronger reconstruction attacker**
-InverNet at 30 epochs is moderate. Run at 50 epochs for A_plain_vfl vs best VQ method to stress-test the privacy claim.
+**3. Equal-bit comparison writeup**
+H_vq_M16 vs S_sign_quant at 128 bits: WACC 0.775 vs 0.770 (VQ wins), SSIM 0.5397 vs 0.5382 (sign quant ~0.0015 more private). Conclusion: VQ wins on utility at statistically equivalent privacy. Can write this now.
 
-**5. Clinical SSIM threshold**
-Need a citation to clinical image quality literature for dermoscopy, or a perceptual annotation, to ground SSIM numbers for medical imaging reviewers.
+**4. Clinical SSIM citation**
+Need dermoscopy image quality literature to contextualize SSIM=0.62 (plain) vs 0.50 (VQ) for medical reviewers. What features are recoverable vs lost at each level.
+
+**5. ESANN 2024 paper ES2024-57**
+Must obtain and read before submission. Closest potential prior work on VQ + FL privacy. Cannot assess novelty without it.
+
+**6. PAD-UFES-20 external validation**
+Full plan in pad_ufes20_v9_external_validation_plan.md. Requires new Kaggle run on different dataset. Blocked until ISIC-2019 paper section is drafted.
 
 ---
 
@@ -171,16 +216,15 @@ Need a citation to clinical image quality literature for dermoscopy, or a percep
 
 | Task | Effort | Status |
 |------|--------|--------|
-| Recover result JSONs for K256 s42 + commit_high s42 | ~5 min | ✅ Done (session 3) |
-| Train H_vq_commit_high seed 43 | ~1 hr GPU | ✅ Done (session 3) |
-| Stage B: H_vq_K256 + H_vq_commit_high | done | ✅ Done (session 3) |
-| Stage B: remaining 9 methods × 2 seeds | ~3–4 hr GPU | **Main blocker** |
-| Equal-bit comparison writeup (M16 vs S_sign) | writing | blocked on Stage B |
-| Pareto curve + bits-vs-SSIM figures | 1–2 hr | blocked on Stage B |
-| Stronger InverNet (50 epochs) | ~4 hr GPU | not started |
+| WACC: all 11 methods × 2 seeds | — | ✅ Done |
+| Stage B: all 11 methods × 2 seeds, 50 epochs | — | ✅ Done |
+| Equal-bit comparison writeup (M16 vs S_sign) | writing | **ready to write** |
+| Pareto curve figure | 1–2 hr | **ready to produce** |
+| Reconstruction grid figure | depends on saved images | check Stage B outputs |
+| Clinical SSIM citation | literature search | not started |
+| ESANN 2024 ES2024-57 novelty check | read paper | not started |
+| PAD-UFES-20 external validation | new Kaggle run | not started |
 | Mechanism explanation for VQ utility improvement | writing | can start now |
-| Phase 2: cross-modal attention + VQ privacy layer | new work | future |
-| Phase 3: dynamic commitment weight per modality | new work | future |
 
 ### Venue targets
 

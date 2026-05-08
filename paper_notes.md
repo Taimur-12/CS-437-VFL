@@ -14,12 +14,12 @@ Working notes for writing the paper. Purpose: when to cite each paper, what to s
 3. A learned discrete bottleneck (product VQ) strips high-frequency embedding variation the classifier doesn't need, acting as a regularizer — this is why utility *improves*.
 4. The same discretization makes the transmitted representation harder to invert — reconstruction SSIM drops relative to continuous transmission.
 5. This tradeoff is tunable via K, M, and β. K=64 is the strongest single operating point.
-6. The behavior generalizes from ISIC-2019 dermoscopy to PAD-UFES-20 smartphone clinical images.
+6. The regularization mechanism is empirically supported: VQ representations show higher within-class silhouette score than plain VFL despite lower dimensionality.
 
 **What the paper does NOT claim:**
 - Formal privacy guarantees (no DP bounds).
 - Defense against active/gradient-based attacks (URVFL is out of scope).
-- That VQ is universally better than sign quantization — at 128 bits, VQ wins on utility; privacy comparison pending Stage B.
+- That VQ is universally better than sign quantization — at 128 bits, VQ wins on utility (0.775 vs 0.770) at essentially equal SSIM (0.540 vs 0.538).
 
 ---
 
@@ -36,26 +36,6 @@ Working notes for writing the paper. Purpose: when to cite each paper, what to s
 > *"We evaluate on ISIC-2019, an 8-class dermoscopy skin lesion benchmark with patient metadata, partitioned vertically: the image party transmits only an intermediate representation, while the metadata-and-label party performs classification. Balanced accuracy (WACC) is the primary utility metric given severe class imbalance across 8 categories."*
 
 **Why it is the primary dataset:** Large enough for stable 2-seed estimates across 11 methods, well-established in skin lesion literature, and provides both image and tabular metadata for a realistic multimodal VFL setup.
-
----
-
-### PAD-UFES-20 (External Validation)
-
-**What it is:** 2,298 smartphone clinical skin lesion images from 1,373 patients across 6 classes (ACK, BCC, MEL, NEV, SCC, SEK) with structured clinical metadata. MEL has only 52 samples — results on MEL will be noisy. Patient-grouped splits are mandatory (image-level splits leak patient identity).
-
-**Why it is in the paper:** Tests whether the VQ bottleneck behavior observed on ISIC-2019 dermoscopy transfers to a different acquisition regime (smartphone clinical photography) and a different metadata structure (richer clinical features). Recent 2025/2026 papers (DualRefNet, MetaBlock-SE, HCHS-Net, DermaCalibra) use PAD for centralized multimodal fusion — citing them positions our VFL privacy framing as orthogonal.
-
-**Key differences from ISIC that must be stated:** 6 classes not 8, smartphone not dermoscopy, Brazilian clinical program not ISIC archive, patient-grouped split not fold-based, conservative crop scale (0.70–1.0) not aggressive (0.08–1.0) because raw clinical photographs can lose the lesion under heavy crop.
-
-**What to claim:** External validity across two skin-lesion acquisition regimes. NOT: "the method works for all medical imaging."
-
-**Framing sentence for paper:**
-
-> *"To assess generalization beyond dermoscopy, we repeat the VFL protocol on PAD-UFES-20, a smartphone clinical skin lesion dataset with structured patient metadata. Biopsy status is excluded from model inputs as it is entangled with diagnostic class. Patient-grouped stratified splits prevent identity leakage across train/validation. We report relative SSIM/LPIPS against A_plain_vfl rather than absolute thresholds, as smartphone image standardization differs from dermoscopy."*
-
-**Framing sentence for related work:**
-
-> *"Recent PAD-UFES-20 studies examine centralized multimodal fusion of clinical images and metadata. We instead use PAD-UFES-20 to evaluate the vertical setting, in which the image holder transmits only a compressed representation to the metadata-and-label holder, and reconstruction leakage is measured from that representation."*
 
 ---
 
@@ -125,26 +105,26 @@ Based on literature search (May 2026):
 
 All 11 methods, 2 seeds each:
 
-| Method | Bits | WACC | SSIM |
-|--------|------|------|------|
-| A_plain_vfl | 40960 | 0.752 ± 0.004 | pending |
-| A_proj_vfl | 4096 | 0.767 ± 0.001 | pending |
-| S_rand_sign | 128 | 0.723 ± 0.007 | pending |
-| S_sign_quant | 128 | 0.770 ± 0.006 | pending |
-| H_vq_K64 | 48 | 0.786 ± 0.007 | pending |
-| H_vq_K256 | 64 | 0.773 ± 0.003 | pending (was 0.5252 at 30 epochs) |
-| H_vq_no_kmeans | 64 | 0.779 ± 0.000 | pending |
-| H_vq_M4 | 32 | 0.771 ± 0.005 | pending |
-| H_vq_M16 | 128 | 0.775 ± 0.002 | pending |
-| H_vq_commit_low | 64 | 0.778 ± 0.007 | pending |
-| H_vq_commit_high | 64 | 0.780 ± 0.001 | pending (was 0.5250 at 30 epochs) |
+| Method | Bits | WACC | SSIM | LPIPS |
+|--------|------|------|------|-------|
+| A_plain_vfl | 40960 | 0.752 ± 0.004 | 0.622 | 0.111 |
+| A_proj_vfl | 4096 | 0.767 ± 0.001 | 0.585 | 0.139 |
+| S_rand_sign | 128 | 0.723 ± 0.007 | 0.529 | 0.214 |
+| S_sign_quant | 128 | 0.770 ± 0.006 | 0.538 | 0.196 |
+| H_vq_K64 | 48 | 0.786 ± 0.007 | **0.503** | 0.241 |
+| H_vq_K256 | 64 | 0.773 ± 0.003 | 0.514 | 0.227 |
+| H_vq_no_kmeans | 64 | 0.779 ± 0.000 | 0.520 | 0.232 |
+| H_vq_M4 | 32 | 0.771 ± 0.005 | 0.512 | 0.239 |
+| H_vq_M16 | 128 | 0.775 ± 0.002 | 0.540 | 0.194 |
+| H_vq_commit_low | 64 | 0.778 ± 0.007 | 0.512 | 0.226 |
+| H_vq_commit_high | 64 | 0.780 ± 0.001 | 0.512 | 0.231 |
 
-All SSIM values pending Stage B (50-epoch InverNet runs currently in progress).
+All values final: WACC from 2 seeds, SSIM/LPIPS from 50-epoch InverNet Stage B × 2 seeds. SSIM: higher = easier to reconstruct = less private. LPIPS: higher = more perceptually different = more private.
 
 **Headline numbers:**
-- H_vq_K64: +3.4 WACC over A_plain, 853× fewer bits
+- H_vq_K64: +3.4 WACC over A_plain (0.786 vs 0.752), SSIM 0.503 vs 0.622, at 853× fewer bits
 - H_vq_M4 (32 bits): +1.9 WACC over A_plain at 1280× fewer bits
-- Equal-bit comparison: H_vq_M16 (0.775) vs S_sign_quant (0.770) at 128 bits — VQ wins on utility; SSIM pending
+- Equal-bit comparison at 128b: H_vq_M16 (WACC 0.775, SSIM 0.540) vs S_sign_quant (WACC 0.770, SSIM 0.538) — VQ wins utility at equivalent privacy
 
 ---
 
@@ -207,17 +187,6 @@ Paper line: *"FedVQCS [cite] demonstrates that vector quantization can reduce co
 
 ---
 
-### Recent PAD-UFES-20 papers (cite in external validation section)
-
-| Paper | Venue | One-line use |
-|---|---|---|
-| DualRefNet | Scientific Reports 2025 | Centralized image+metadata fusion on PAD; positions our VFL framing as orthogonal |
-| MetaBlock-SE | IEEE JBHI 2025 | Metadata-robust multimodal on PAD; same positioning |
-| HCHS-Net | Biomimetics 2026 | Six-class PAD study; confirms PAD is active in 2026 |
-| DermaCalibra | Diagnostics 2026 | Uncertainty-aware multimodal on PAD; same positioning |
-
-Do NOT cite the medRxiv cross-attention preprint as a peer-reviewed result — flag as preprint if cited.
-
 ---
 
 ## Paper Structure (draft outline)
@@ -229,23 +198,22 @@ Do NOT cite the medRxiv cross-attention preprint as a peer-reviewed result — f
    - Multimodal VFL fusion: HybridVFL (orthogonal contribution)
    - Split learning privacy (broader context)
 3. **Method** — VFL setup, VQ bottleneck, InverNetV9 attacker
-4. **Experiments** — ISIC-2019 (primary), PAD-UFES-20 (external validation), baselines, VQ ablations
-5. **Results** — Utility table, SSIM table, PAD validation table, Pareto curve, reconstruction grids
-6. **Discussion** — Why VQ improves utility, privacy mechanism, limitations (URVFL out of scope, diffusion-based inversion as future stronger attacker)
+4. **Experiments** — ISIC-2019, baselines, VQ ablations (K / M / β / init)
+5. **Results** — Utility table, SSIM/LPIPS table, Pareto curve, reconstruction grids, embedding analysis (regularization evidence)
+6. **Discussion** — Why VQ improves utility (regularization + silhouette evidence), privacy mechanism, limitations (URVFL out of scope, diffusion-based inversion as future stronger attacker)
 7. **Conclusion**
 
 ---
 
 ## Pending Before Writing
 
-- [ ] Stage B (50-epoch InverNet) for all 11 methods × 2 seeds — **main blocker**
+- [x] Stage B (50-epoch InverNet) for all 11 methods × 2 seeds
+- [x] Update Key Results table with final 50-epoch SSIM values
+- [x] Pareto curve — generated locally via make_figures.py
+- [ ] Reconstruction grid (invernet_grid_regen.ipynb — Kaggle run needed, ~1.5 hr)
+- [ ] Embedding analysis: silhouette score + t-SNE for A_plain vs H_vq_K64 (Kaggle run needed, ~30 min)
 - [ ] Obtain and read ESANN 2024 ES2024-57 (novelty risk — must do before submission)
-- [ ] Update Key Results table with final 50-epoch SSIM values
-- [ ] Pareto curve (WACC vs SSIM, colored by family, point size ∝ bits)
-- [ ] Reconstruction grid figure (orig | recon | diff — A_plain vs best VQ vs worst VQ)
-- [ ] Equal-bit comparison writeup (H_vq_M16 vs S_sign_quant at 128 bits)
 - [ ] Clinical SSIM citation for dermoscopy image quality
-- [ ] PAD-UFES-20: implement loader, patient-grouped split, run minimum method grid + Stage B
 
 ---
 

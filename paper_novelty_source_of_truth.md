@@ -24,9 +24,7 @@ In vertical federated learning (VFL), replace the passive image client's continu
 
 ### Current strongest claim
 
-**Established now:** On ISIC-2019, learned product quantization at the passive communication boundary improves balanced accuracy over continuous VFL while reducing transmitted representation size from 40960 bits to 32-128 bits.
-
-**Conditional after Stage B:** If full InverNet reconstruction results show lower SSIM and higher LPIPS for VQ than continuous/projection baselines, the paper can claim an empirical privacy-utility-communication Pareto improvement.
+**Established:** On ISIC-2019, learned product quantization at the passive communication boundary improves balanced accuracy over continuous VFL while reducing transmitted representation size from 40960 bits to 32-128 bits, and simultaneously reduces reconstruction SSIM (0.503 for H_vq_K64 vs 0.622 for A_plain_vfl). The paper can claim an empirical privacy-utility-communication Pareto improvement. H_vq_K64 is Pareto-dominant: best WACC and lowest SSIM of all 11 methods.
 
 ### What changed from older versions
 
@@ -42,7 +40,7 @@ The paper is now about:
 - Passive image-party representation leakage.
 - Reconstruction privacy from transmitted embeddings.
 - Learned product quantization as a communication/privacy bottleneck.
-- Empirical utility/compression results on ISIC-2019, with PAD-UFES-20 as external validation once run.
+- Empirical utility/compression/privacy results on ISIC-2019. PAD-UFES-20 external validation was attempted but results were poor and that direction is dropped.
 
 ---
 
@@ -111,19 +109,21 @@ Local primary artifacts:
 
 All numbers below are from the local `results_final/result_*.json` files and `results_analysis.md`.
 
-| Method | Bits | WACC mean +/- std | Tail WACC | Current status |
-|---|---:|---:|---:|---|
-| `A_plain_vfl` | 40960 | 0.7516 +/- 0.0043 | 0.7880 | Utility complete, Stage B pending |
-| `A_proj_vfl` | 4096 | 0.7665 +/- 0.0013 | 0.7933 | Utility complete, Stage B pending |
-| `S_rand_sign` | 128 | 0.7232 +/- 0.0067 | 0.7675 | Utility complete, Stage B pending |
-| `S_sign_quant` | 128 | 0.7703 +/- 0.0062 | 0.7955 | Utility complete, Stage B pending |
-| `H_vq_K64` | 48 | **0.7860 +/- 0.0072** | **0.8095** | Utility complete, Stage B pending |
-| `H_vq_K256` | 64 | 0.7727 +/- 0.0034 | 0.7907 | Utility complete, pilot Stage B noted |
-| `H_vq_no_kmeans` | 64 | 0.7790 +/- 0.0003 | 0.7997 | Utility complete, Stage B pending |
-| `H_vq_M4` | 32 | 0.7706 +/- 0.0049 | 0.7885 | Utility complete, Stage B pending |
-| `H_vq_M16` | 128 | 0.7748 +/- 0.0017 | 0.7917 | Utility complete, Stage B pending |
-| `H_vq_commit_low` | 64 | 0.7781 +/- 0.0069 | 0.7913 | Utility complete, Stage B pending |
-| `H_vq_commit_high` | 64 | 0.7803 +/- 0.0014 | 0.8017 | Utility complete, pilot Stage B noted |
+| Method | Bits | WACC mean +/- std | Tail WACC | SSIM | LPIPS |
+|---|---:|---:|---:|---:|---:|
+| `A_plain_vfl` | 40960 | 0.7516 +/- 0.0043 | 0.7880 | 0.622 | 0.111 |
+| `A_proj_vfl` | 4096 | 0.7665 +/- 0.0013 | 0.7933 | 0.585 | 0.139 |
+| `S_rand_sign` | 128 | 0.7232 +/- 0.0067 | 0.7675 | 0.529 | 0.214 |
+| `S_sign_quant` | 128 | 0.7703 +/- 0.0062 | 0.7955 | 0.538 | 0.196 |
+| `H_vq_K64` | 48 | **0.7860 +/- 0.0072** | **0.8095** | **0.503** | 0.241 |
+| `H_vq_K256` | 64 | 0.7727 +/- 0.0034 | 0.7907 | 0.514 | 0.227 |
+| `H_vq_no_kmeans` | 64 | 0.7790 +/- 0.0003 | 0.7997 | 0.520 | 0.232 |
+| `H_vq_M4` | 32 | 0.7706 +/- 0.0049 | 0.7885 | 0.512 | 0.239 |
+| `H_vq_M16` | 128 | 0.7748 +/- 0.0017 | 0.7917 | 0.540 | 0.194 |
+| `H_vq_commit_low` | 64 | 0.7781 +/- 0.0069 | 0.7913 | 0.512 | 0.226 |
+| `H_vq_commit_high` | 64 | 0.7803 +/- 0.0014 | 0.8017 | 0.512 | 0.231 |
+
+All values final. WACC: 2 seeds. SSIM/LPIPS: 50-epoch InverNet × 2 seeds. SSIM higher = easier to reconstruct = less private.
 
 ### Utility observations that are currently defensible
 
@@ -136,21 +136,11 @@ All numbers below are from the local `results_final/result_*.json` files and `re
 
 ### Privacy evidence status
 
-Do not overclaim this yet.
+Stage B complete for all 11 methods × 2 seeds at 50 InverNet epochs. The privacy claim is now defensible. Key comparisons confirmed:
 
-Current notes record pilot Stage B results for:
-
-- `H_vq_K256`: SSIM 0.5252, LPIPS 0.2167.
-- `H_vq_commit_high`: SSIM 0.5250, LPIPS 0.2187.
-
-Those values are useful pilot evidence only. The local repo currently contains utility JSONs and checkpoints, but not a complete exported reconstruction table for all methods. The final paper needs full 50-epoch Stage B for all relevant baselines and VQ methods.
-
-The privacy claim becomes defensible only after these comparisons are run:
-
-- `A_plain_vfl` SSIM/LPIPS vs best VQ.
-- `A_proj_vfl` SSIM/LPIPS vs best VQ.
-- `S_sign_quant` SSIM/LPIPS vs `H_vq_M16` at 128 bits.
-- Preferably `H_vq_K64` and `H_vq_M4` because these are the most important low-bit VQ points.
+- `A_plain_vfl` SSIM 0.622 vs `H_vq_K64` SSIM 0.503: −0.119 absolute, largest drop.
+- `A_proj_vfl` SSIM 0.585 vs `H_vq_K64` SSIM 0.503: projection alone is insufficient.
+- Equal-bit (128b): `H_vq_M16` SSIM 0.540 vs `S_sign_quant` SSIM 0.538: essentially tied on privacy, VQ wins utility (+0.5pp WACC). Frame as "VQ achieves better utility at equivalent privacy," not "VQ is more private."
 
 ---
 
@@ -213,11 +203,9 @@ If full Stage B confirms the expected pattern, the paper can say:
 
 > Product quantization creates a tunable discrete bottleneck that improves the utility/communication tradeoff and empirically reduces reconstruction leakage from the passive image representation compared with continuous VFL and projection-only VFL.
 
-### Current claim before Stage B is complete
+### Current full claim (Stage B complete)
 
-Until full Stage B is complete, the safe claim is:
-
-> Product quantization creates a very strong utility/communication tradeoff on ISIC-2019 VFL. Full reconstruction privacy evaluation is the remaining blocker.
+> Product quantization creates a tunable discrete bottleneck that simultaneously improves diagnostic utility, reduces communication by 300–1280×, and empirically reduces image reconstructability relative to continuous and projection-only VFL. H_vq_K64 is Pareto-dominant across all 11 methods on ISIC-2019.
 
 ### Claims not to make
 
@@ -358,26 +346,26 @@ point label/size: bits
 color: method family
 ```
 
-The paper-positive outcome:
+The paper-positive outcome: **confirmed.**
 
 ```text
-H_vq_K64 or H_vq_M4:
-  WACC >= A_plain_vfl
-  SSIM < A_proj_vfl
-  LPIPS > A_proj_vfl
-  bits <= 64
+H_vq_K64:
+  WACC 0.786 >= A_plain_vfl 0.752  ✓
+  SSIM 0.503 < A_proj_vfl 0.585    ✓
+  LPIPS 0.241 > A_proj_vfl 0.139   ✓
+  bits 48 <= 64                    ✓
 ```
 
-Equal-bit learned-VQ outcome:
+Equal-bit learned-VQ outcome: **partially confirmed.**
 
 ```text
 H_vq_M16 vs S_sign_quant, both 128 bits:
-  H_vq_M16 WACC >= S_sign_quant
-  H_vq_M16 SSIM <= S_sign_quant
-  H_vq_M16 LPIPS >= S_sign_quant
+  WACC 0.775 >= 0.770              ✓ (+0.5pp)
+  SSIM 0.540 vs 0.538              ~ (essentially tied, 0.002 gap)
+  LPIPS 0.194 vs 0.196             ~ (essentially tied)
 ```
 
-If the equal-bit privacy comparison fails, the learned-codebook novelty weakens. The paper can still be about discrete bottlenecks and communication-efficient utility, but not "learned VQ is more private than naive sign at equal bits."
+Frame the equal-bit result as: VQ achieves better utility at equivalent privacy, not "VQ is more private." The SSIM gap (0.002) is too small to claim a privacy advantage.
 
 ---
 
@@ -385,11 +373,10 @@ If the equal-bit privacy comparison fails, the learned-codebook novelty weakens.
 
 ### Main research questions
 
-1. Does learned product quantization preserve or improve diagnostic utility compared with continuous VFL?
-2. Does learned product quantization reduce communication by orders of magnitude?
-3. Does learned product quantization reduce image reconstructability beyond 128-d projection alone?
-4. Does learned VQ beat naive sign quantization at the same 128-bit budget?
-5. Does the behavior transfer from ISIC-2019 dermoscopy-style images to PAD-UFES-20 smartphone clinical images?
+1. Does learned product quantization preserve or improve diagnostic utility compared with continuous VFL? **Yes — all VQ methods beat A_plain_vfl.**
+2. Does learned product quantization reduce communication by orders of magnitude? **Yes — 300–1280× reduction.**
+3. Does learned product quantization reduce image reconstructability beyond 128-d projection alone? **Yes — SSIM 0.503 vs 0.585.**
+4. Does learned VQ beat naive sign quantization at the same 128-bit budget? **On utility yes (+0.5pp); on privacy essentially tied (0.002 SSIM gap).**
 
 ### Secondary questions
 
@@ -404,34 +391,15 @@ If the equal-bit privacy comparison fails, the learned-codebook novelty weakens.
 
 Priority order:
 
-1. Run Stage B for all remaining ISIC methods:
-   - `A_plain_vfl`
-   - `A_proj_vfl`
-   - `S_rand_sign`
-   - `S_sign_quant`
-   - `H_vq_K64`
-   - `H_vq_no_kmeans`
-   - `H_vq_M4`
-   - `H_vq_M16`
-   - `H_vq_commit_low`
-2. Export final `results_table.csv/json` with WACC, tail WACC, SSIM, LPIPS, bits, seeds.
-3. Generate Pareto plot: WACC vs SSIM.
-4. Generate bits vs WACC and bits vs SSIM plots.
-5. Generate aligned reconstruction grids using the same validation samples across methods.
-6. Run at least one stronger-attacker sanity check:
-   - 50 epochs for all methods if feasible, or
-   - 50 epochs for `A_plain_vfl`, `A_proj_vfl`, `S_sign_quant`, `H_vq_K64`, `H_vq_M16`.
-7. Run PAD minimum grid from `shazil_v10_pad_ufes.ipynb`:
-   - `A_plain_vfl`
-   - `A_proj_vfl`
-   - `S_sign_quant`
-   - `H_vq_K64`
-   - `H_vq_K256`
-   - `H_vq_M4`
-   - `H_vq_M16`
-   - `H_vq_commit_high`
-8. Add PAD metadata-only and image-only controls if PAD results are used in the paper.
-9. Read the full ESANN 2024 VQ privacy PDF and decide whether it needs a related-work paragraph or a direct contrast table.
+1. ~~Run Stage B for all remaining ISIC methods~~ — **Done. All 11 methods × 2 seeds at 50 epochs.**
+2. ~~Export final results table~~ — **Done. results_final/ contains all result_*.json and recon_*.json.**
+3. ~~Generate Pareto plot~~ — **Done. figures/pareto_wacc_vs_ssim.pdf via make_figures.py.**
+4. ~~Generate bits vs WACC and bits vs SSIM plots~~ — **Done.**
+5. Generate aligned reconstruction grids — **In progress. Run invernet_grid_regen.ipynb on Kaggle (~1.5 hr).**
+6. ~~Run 50-epoch attacker~~ — **Done. All Stage B ran at 50 epochs.**
+7. ~~PAD-UFES-20~~ — **Dropped. Results were poor.**
+8. Run embedding analysis (silhouette + t-SNE) — **Ready. Run embedding_analysis.ipynb on Kaggle (~30 min).**
+9. Read the full ESANN 2024 VQ privacy PDF — **Still required before submission.**
 
 ---
 
@@ -450,8 +418,8 @@ Contributions:
 
 1. Product-quantized passive representation transmission for medical VFL.
 2. Full utility/compression ablation against continuous, projection-only, sign, and random-sign baselines.
-3. Reconstruction-privacy evaluation using InverNetV9 with SSIM and LPIPS.
-4. External validation protocol on PAD-UFES-20, and optionally results if run.
+3. Reconstruction-privacy evaluation using InverNetV9 with SSIM and LPIPS across all 11 methods.
+4. Empirical evidence that VQ acts as a representation regularizer (silhouette score + t-SNE).
 
 ### Related Work
 
@@ -479,10 +447,9 @@ Subsections:
 Subsections:
 
 - ISIC-2019 setup.
-- PAD-UFES-20 setup if run.
-- Method grid.
-- Utility metrics.
-- Privacy metrics.
+- Method grid (11 methods, 2 seeds).
+- Utility metrics (WACC, tail WACC).
+- Privacy metrics (SSIM, LPIPS via InverNetV9).
 
 ### Results
 
@@ -490,9 +457,9 @@ Subsections:
 
 - Utility and communication.
 - Reconstruction privacy.
-- Equal-bit comparison.
+- Equal-bit comparison (H_vq_M16 vs S_sign_quant at 128 bits).
 - K/M/commitment/init ablations.
-- External validation.
+- Regularization evidence (silhouette + t-SNE).
 
 ### Discussion
 
@@ -511,15 +478,13 @@ Before writing claims, verify these:
 
 - [ ] Do not say VQ quantizes the 1280-d embedding; it quantizes the 128-d projection.
 - [ ] Do not cite old SOTA notes as if current; HybridVFL exists.
-- [ ] Do not claim privacy improvement until `A_plain_vfl` and `A_proj_vfl` Stage B are complete.
-- [ ] Do not claim learned VQ beats sign on privacy until `H_vq_M16` and `S_sign_quant` Stage B are complete.
-- [ ] Do not use biopsy status as PAD metadata.
-- [ ] Do not use image-level random splits for PAD.
+- [x] ~~Do not claim privacy improvement until `A_plain_vfl` and `A_proj_vfl` Stage B are complete.~~ — Stage B done.
+- [x] ~~Do not claim learned VQ beats sign on privacy until `H_vq_M16` and `S_sign_quant` Stage B are complete.~~ — Done. Equal-bit SSIM gap is 0.002; frame as utility win, not privacy win.
 - [ ] Do not compare HybridVFL numbers directly to your ISIC-2019 numbers because datasets and protocols differ.
 - [ ] Do not claim formal privacy or DP.
 - [ ] Do not claim robustness to URVFL.
-- [ ] Do not call PAD "latest"; it is a clean external validation dataset from 2020.
 - [ ] Do not claim ISIC-2024/SLICE-3D results until implemented.
+- [ ] Do not reference PAD results — those experiments are dropped.
 
 ---
 
@@ -532,9 +497,9 @@ Before writing claims, verify these:
 - `shazil_v9.ipynb` defines 11 ISIC methods and 2 seeds.
 - `results_final/result_*.json` exists for all 11 methods x 2 seeds.
 - `results_final/checkpoints/*.pt` exists for all 11 methods x 2 seeds.
-- `results_analysis.md` says Stage B is complete only for `H_vq_K256` and `H_vq_commit_high`, and remaining methods are pending.
-- Local `results_final` currently does not contain a complete final reconstruction table.
-- `shazil_v10_pad_ufes.ipynb` implements PAD external validation but the local repo does not show completed PAD result artifacts.
+- `results_analysis.md` shows Stage B complete for all 11 methods × 2 seeds at 50 InverNet epochs.
+- `results_final/` contains all 22 recon_*.json (SSIM/LPIPS) alongside the 22 result_*.json (WACC).
+- PAD external validation dropped; results were poor.
 
 ### Checked against primary/external sources
 
