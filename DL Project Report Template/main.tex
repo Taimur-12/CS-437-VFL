@@ -17,6 +17,8 @@
 
 \usepackage[accepted]{icml2021}
 
+\icmltitlerunning{Product-Quantized VFL Representations}
+
 \begin{document}
 
 \twocolumn[
@@ -36,7 +38,7 @@
 
 
 \begin{abstract}
-\textit{The purpose of an abstract is to summarize the entire paper in a nutshell. Provide information regarding the project domain, the current problem, your solution, and then quote your direct improvements against SoTA on key datasets. You can also summarize the main mechanism by which you are bringing about an improvement over the baseline.}
+Medical vertical federated learning can keep dermoscopic images and patient metadata at separate parties, but the passive image party still transmits intermediate representations that may reveal private image content. We propose a learned product-quantized passive bottleneck for image/metadata VFL, applied to the 128-dimensional projected EfficientNet-B0 representation before transmission. The bottleneck splits the projection into subspaces and sends codebook indices, reducing the information available to the active side and to a passive inversion attacker while preserving class-relevant structure. On ISIC-2019, \texttt{H\_vq\_K64} improves balanced accuracy over continuous VFL from 0.7516 to 0.7860 and reduces reconstruction SSIM from 0.6215 to 0.5030. It also lowers the passive payload from 40960 to 48 bits, a $853\times$ reduction. Embedding analysis suggests that discretization acts as a representation regularizer, yielding a Pareto-improving operating point for utility, communication, and empirical reconstruction privacy.
 \end{abstract}
 
 \section{Introduction}
@@ -84,6 +86,15 @@ We study a two-party vertical federated learning (VFL) setting in which the same
     \hat{y}_i = g_{\phi}\left(r_i, x_i^M\right).
 \end{equation}
 Raw images are never sent to the active party. During training, the active party returns gradients with respect to the received representation so that the passive encoder can be updated. Our method changes only the representation transmitted by the passive image party.
+
+Figure~\ref{fig:vfl_architecture} summarizes the proposed VFL flow. The passive party sends code indices rather than a continuous image embedding in the VQ variants, while the reconstruction attacker is used only for privacy evaluation.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.96\textwidth]{figures/vfl_architecture.pdf}
+\caption{Architecture of the proposed product-quantized VFL bottleneck. The passive party encodes the dermoscopic image, projects the embedding, and applies product quantization before transmission. The active party reconstructs the quantized vector by codebook lookup, fuses it with metadata, and computes the supervised loss. The attacker path is used only to evaluate reconstruction privacy.}
+\label{fig:vfl_architecture}
+\end{figure*}
 
 \subsection{Passive Encoder and Active Classifier}
 
@@ -174,17 +185,18 @@ Experiments use ISIC-2019, an 8-class dermoscopic skin-lesion classification ben
 
 We use fold 0 from the cached ISIC-2019 split: 20,264 training samples and 5,067 validation samples. Images are cached at $256 \times 256$. Training uses random resized crops to $224 \times 224$, horizontal and vertical flips, color jitter, and ImageNet normalization \citep{deng2009imagenet}; validation uses center crop and the same normalization. All models are trained with class-weighted cross entropy, Adam \citep{kingma2015adam} with learning rate $10^{-4}$ and weight decay $10^{-5}$, batch size 32, five-epoch learning-rate warmup, cosine decay to $10^{-6}$, and early stopping with patience 10. For parity across methods, the forward representation and returned gradient both include additive Gaussian channel noise with $\sigma=0.01$. The maximum training budget is 40 epochs. Each method is run with seeds 42 and 43.
 
-Severe class imbalance motivates WACC as the primary utility metric. We implement WACC as balanced multiclass accuracy, aligned with the ISIC-2019 goal metric \citep{isic2019challenge}. We also report tail WACC, the mean recall over the four rarest classes in our training distribution: AK, DF, VASC, and SCC. For each method and seed, the best checkpoint is selected by validation WACC. Reconstruction metrics are then computed by training InverNetV9 on the corresponding training split representations and evaluating on all 5,067 validation samples.
+Severe class imbalance motivates WACC as the primary utility metric. We implement WACC as balanced multiclass accuracy, aligned with the ISIC-2019 goal metric \citep{isic2019challenge}. We also report tail WACC, the mean recall over the four rarest classes in our training distribution: AK, DF, VASC, and SCC. For each method and seed, the best checkpoint is selected by validation WACC. Reconstruction metrics are then computed by training InverNetV9 on the corresponding training split representations and evaluating SSIM \citep{wang2004ssim} and LPIPS \citep{zhang2018lpips} on all 5,067 validation samples.
 
 \section{Results}
 Table~\ref{tab:utility_results} reports diagnostic utility and communication cost. All product-quantized variants exceed \texttt{A\_plain\_vfl} on WACC while using 32--128 bits. The strongest point is \texttt{H\_vq\_K64}: it achieves 0.7860 WACC at 48 bits, compared with 0.7516 for continuous VFL. This is a 3.4 percentage-point gain and a $853\times$ payload reduction.
 
-\begin{table*}[t]
+\begin{table}[t]
 \caption{Utility and communication results on ISIC-2019. WACC is balanced multiclass accuracy over eight classes. Tail WACC is mean recall over AK, DF, VASC, and SCC. Values are averaged over two seeds.}
 \label{tab:utility_results}
 \centering
-\small
-\setlength{\tabcolsep}{5pt}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lrrr}
 \toprule
 Method & Bits & WACC & Tail WACC \\
@@ -202,7 +214,8 @@ Method & Bits & WACC & Tail WACC \\
 \texttt{H\_vq\_commit\_high} & 64 & $0.7803 \pm 0.0014$ & 0.8017 \\
 \bottomrule
 \end{tabular}
-\end{table*}
+}
+\end{table}
 
 The compression controls show that smaller payloads alone do not explain the result. The frozen random-sign projection reaches 0.7232 WACC, below continuous VFL. Learned sign quantization improves to 0.7703 WACC. \texttt{H\_vq\_K64} surpasses both while using fewer than half the 128-bit sign payload.
 
@@ -215,12 +228,13 @@ The compression controls show that smaller payloads alone do not explain the res
 
 Table~\ref{tab:privacy_results} reports reconstruction privacy under the 50-epoch InverNetV9 attacker. Higher SSIM and lower LPIPS indicate more faithful reconstructions. The continuous baseline is easiest to reconstruct, with SSIM 0.6215. Product-quantized methods reduce SSIM to 0.5030--0.5397. \texttt{H\_vq\_K64} gives the lowest SSIM and highest LPIPS, 0.5030 and 0.2413.
 
-\begin{table*}[t]
+\begin{table}[t]
 \caption{Reconstruction privacy results under InverNetV9. SSIM and LPIPS are averaged over two seeds and all 5,067 validation samples per seed. Lower SSIM and higher LPIPS indicate weaker reconstruction.}
 \label{tab:privacy_results}
 \centering
-\small
-\setlength{\tabcolsep}{5pt}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lrrr}
 \toprule
 Method & Bits & SSIM & LPIPS \\
@@ -238,7 +252,8 @@ Method & Bits & SSIM & LPIPS \\
 \texttt{H\_vq\_commit\_high} & 64 & $0.5118 \pm 0.0034$ & $0.2306 \pm 0.0020$ \\
 \bottomrule
 \end{tabular}
-\end{table*}
+}
+\end{table}
 
 Figure~\ref{fig:pareto} summarizes the joint tradeoff. \texttt{H\_vq\_K64} is Pareto-dominant among the evaluated methods. Relative to \texttt{A\_plain\_vfl}, WACC rises from 0.7516 to 0.7860, SSIM falls from 0.6215 to 0.5030, and communication decreases by $853\times$. The projection-only control does not match this point: \texttt{A\_proj\_vfl} uses 4096 bits, reaches 0.7665 WACC, and remains at 0.5845 SSIM.
 
@@ -258,7 +273,14 @@ At identical 128-bit communication cost, \texttt{H\_vq\_M16} achieves 0.5 percen
 
 The bit-sweep plots in Figure~\ref{fig:bits} give the communication view of the same result. VQ methods occupy the 32--128 bit range while staying above continuous VFL in WACC and below it in SSIM. We discuss the sensitivity to $K$, $M$, commitment weight, and initialization in the next section.
 
-% TODO: Add the aligned reconstruction grid once invernet_grid_regen.ipynb produces the final image file.
+Figure~\ref{fig:reconstruction_examples} shows qualitative reconstructions from the same InverNetV9 attacker. The continuous baseline preserves coarse lesion color, shape, and pigmentation more clearly than the quantized variants. The strongest VQ bottleneck, \texttt{H\_vq\_K64}, produces less faithful reconstructions, with blurred lesion boundaries and distorted local appearance. This visual trend matches Table~\ref{tab:privacy_results}; however, visual inspection alone does not establish a clinical threshold for when a reconstructed image is no longer diagnostically useful.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=0.88\textwidth]{figures/reconstruction_comparison_seed43.pdf}
+\caption{Qualitative reconstruction examples from the passive representation attacker using seed 43. Each row shows one fixed validation image. Lower SSIM corresponds to weaker average reconstruction in Table~\ref{tab:privacy_results}; the figure is qualitative support rather than a clinical diagnostic evaluation.}
+\label{fig:reconstruction_examples}
+\end{figure*}
 
 \section{Discussion}
 \subsection{Why Product Quantization Improves Utility}
@@ -322,11 +344,20 @@ The initialization ablation is also secondary. Random codebook initialization, \
     \item \textbf{Threat model scope.} URVFL \citep{yao2025urvfl} studies active malicious behavior with label information and generated gradients. Our bottleneck reduces information in transmitted passive representations, but URVFL-class attacks remain future work.
     \item \textbf{Single dataset.} We evaluate on ISIC-2019 only. The results support the image/metadata VFL setting, but cross-domain medical generalization remains unverified.
     \item \textbf{No formal privacy bounds.} InverNetV9 measures empirical reconstructability under a chosen attacker. A stronger decoder, diffusion-based inversion model, or attacker with more side information could change the absolute reconstruction scores.
+    \item \textbf{Diagnostic threshold.} SSIM, LPIPS, and qualitative examples do not determine when a reconstructed dermoscopic image becomes unusable for diagnosis. Future work should include dermatologist reader studies or diagnostic models evaluated directly on reconstructed images.
     \item \textbf{Synthetic federation.} The passive/active party split is constructed from one benchmark rather than collected from separate institutions. Future work should test the bottleneck in real multi-institutional VFL deployments.
 \end{enumerate}
 
 \section{Conclusion}
-\textit{Use the conclusion to identify any remaining gaps and limitations throughout your work. Summarize your key findings and what should be the focus of research regarding this topic in the future knowing the information that you know now.}
+We studied learned product-quantized passive representations for medical VFL, where the image party transmits discrete code indices instead of a continuous embedding. On ISIC-2019, this bottleneck improves the utility-privacy-communication tradeoff: product-quantized methods preserve or improve diagnostic accuracy, reduce passive communication, and lower empirical reconstruction fidelity under InverNetV9. The main mechanism appears to be representation regularization. Projection alone is not enough; the evidence points to discretization as the part that improves class structure while discarding image detail useful for inversion.
+
+A non-obvious finding is that a smaller codebook can be better, not worse. Stronger quantization can remove nuisance variation that the classifier does not need, while high codebook utilization shows that the effect is not codebook collapse. The remaining gaps define the next steps.
+\begin{itemize}
+    \item Evaluate URVFL-class active attacks and stronger diffusion-based inversion models.
+    \item Test the bottleneck across other medical modalities and real multi-institutional VFL splits.
+    \item Develop formal privacy bounds linking codebook size, subspace count, and reconstruction leakage.
+    \item Combine product quantization with stronger multimodal fusion while isolating the transmission effect.
+\end{itemize}
 
 \bibliography{main}
 \bibliographystyle{icml2021}
