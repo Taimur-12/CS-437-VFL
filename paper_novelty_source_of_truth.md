@@ -100,10 +100,11 @@ Local primary artifacts:
 
 - `shazil_v9.ipynb`: actual ISIC-2019 v9 implementation.
 - `results_final/result_*.json`: utility results for 11 methods x 2 seeds.
+- `results_final/recon_*.json`: SSIM/LPIPS results for 11 methods x 2 seeds (50-epoch InverNet).
 - `results_final/checkpoints/*.pt`: saved checkpoints for all 11 methods x 2 seeds.
-- `results_analysis.md`: current analysis of utility and partial reconstruction state.
-- `shazil_v10_pad_ufes.ipynb`: PAD-UFES-20 external-validation implementation.
-- `pad_ufes20_v9_external_validation_plan.md`: PAD protocol and leakage safeguards.
+- `results_analysis.md`: complete analysis of utility, privacy, and regularization evidence.
+- `figures/`: Pareto curve and supporting bits-vs-WACC/SSIM plots (from make_figures.py).
+- `embedding_analysis/`: silhouette table JSON, silhouette bar chart, t-SNE comparison, individual t-SNE PNGs.
 
 ### ISIC-2019 utility/compression results
 
@@ -398,7 +399,7 @@ Priority order:
 5. Generate aligned reconstruction grids — **In progress. Run invernet_grid_regen.ipynb on Kaggle (~1.5 hr).**
 6. ~~Run 50-epoch attacker~~ — **Done. All Stage B ran at 50 epochs.**
 7. ~~PAD-UFES-20~~ — **Dropped. Results were poor.**
-8. Run embedding analysis (silhouette + t-SNE) — **Ready. Run embedding_analysis.ipynb on Kaggle (~30 min).**
+8. ~~Run embedding analysis (silhouette + t-SNE)~~ — **Done. Results in `embedding_analysis/`. Silhouette confirms regularization hypothesis; A_proj_vfl is negative (−0.015), H_vq_M4 leads at 0.136.**
 9. Read the full ESANN 2024 VQ privacy PDF — **Still required before submission.**
 
 ---

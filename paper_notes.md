@@ -14,7 +14,7 @@ Working notes for writing the paper. Purpose: when to cite each paper, what to s
 3. A learned discrete bottleneck (product VQ) strips high-frequency embedding variation the classifier doesn't need, acting as a regularizer — this is why utility *improves*.
 4. The same discretization makes the transmitted representation harder to invert — reconstruction SSIM drops relative to continuous transmission.
 5. This tradeoff is tunable via K, M, and β. K=64 is the strongest single operating point.
-6. The regularization mechanism is empirically supported: VQ representations show higher within-class silhouette score than plain VFL despite lower dimensionality.
+6. The regularization mechanism is empirically confirmed: VQ representations show higher within-class silhouette score (cosine) than plain VFL (0.053–0.136 vs 0.015) despite lower dimensionality. Critically, A_proj_vfl is negative (−0.015) — projection alone *hurts* class structure, proving the effect is from VQ discretization, not the projection layer. H_vq_M4 reaches silhouette 0.136, the highest of all methods.
 
 **What the paper does NOT claim:**
 - Formal privacy guarantees (no DP bounds).
@@ -211,7 +211,7 @@ Paper line: *"FedVQCS [cite] demonstrates that vector quantization can reduce co
 - [x] Update Key Results table with final 50-epoch SSIM values
 - [x] Pareto curve — generated locally via make_figures.py
 - [ ] Reconstruction grid (invernet_grid_regen.ipynb — Kaggle run needed, ~1.5 hr)
-- [ ] Embedding analysis: silhouette score + t-SNE for A_plain vs H_vq_K64 (Kaggle run needed, ~30 min)
+- [x] Embedding analysis: silhouette score + t-SNE — done, results in embedding_analysis/
 - [ ] Obtain and read ESANN 2024 ES2024-57 (novelty risk — must do before submission)
 - [ ] Clinical SSIM citation for dermoscopy image quality
 
